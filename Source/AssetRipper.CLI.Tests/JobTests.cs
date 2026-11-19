@@ -103,9 +103,11 @@ internal class JobTests
 			await Assert.That(conflict.ExitCode).IsEqualTo(8);
 			await Assert.That(conflict.Stdout).IsEmpty();
 			await Assert.That(conflict.Stderr).Contains("job wait " + job);
-			CliResult write = Cli.Run(["get", "asset", reference, "--session", session, "--output", output + "-asset.json"]);
-			await Assert.That(write.ExitCode).IsEqualTo(8);
-			await Assert.That(File.Exists(output + "-asset.json")).IsFalse();
+			string assetOutput = output + "-asset.json";
+			CliResult write = Cli.Run(["get", "asset", reference, "--session", session, "--output", assetOutput]);
+			await Assert.That(write.ExitCode).IsEqualTo(0);
+			await Assert.That(File.Exists(assetOutput)).IsTrue();
+			await Assert.That(File.ReadAllText(assetOutput)).Contains("Hello from CLI fixture!");
 			CliResult close = Cli.Run(["session", "close", session]);
 			await Assert.That(close.ExitCode).IsEqualTo(8);
 			await Assert.That(close.Stdout).IsEmpty();
@@ -127,6 +129,7 @@ internal class JobTests
 			Cli.Run(["session", "close", session]);
 			Directory.Delete(input, true);
 			if (Directory.Exists(output)) Directory.Delete(output, true);
+			if (File.Exists(output + "-asset.json")) File.Delete(output + "-asset.json");
 		}
 	}
 

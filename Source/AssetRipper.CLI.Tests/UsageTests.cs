@@ -107,6 +107,22 @@ internal class UsageTests
 	}
 
 	[Test]
+	[Arguments("export")]
+	[Arguments("get")]
+	public async Task MissingExportOrGetSubcommandIsAUsageError(string command)
+	{
+		CliResult result = Cli.Run([command]);
+
+		await Assert.That(result.ExitCode).IsEqualTo(2);
+		await Assert.That(result.Stdout).IsEmpty();
+		using JsonDocument document = JsonDocument.Parse(result.Stderr);
+		await Assert.That(document.RootElement.GetProperty("code").GetString()).IsEqualTo("usage");
+		string? hint = document.RootElement.GetProperty("hint").GetString();
+		await Assert.That(hint).IsNotNull();
+		await Assert.That(hint!).Contains("--help");
+	}
+
+	[Test]
 	public async Task SubcommandHelpExitsZeroAndDocumentsTheCommand()
 	{
 		CliResult result = Cli.Run(["export", "--help"]);

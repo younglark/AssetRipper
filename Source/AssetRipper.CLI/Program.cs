@@ -104,10 +104,10 @@ public static class Program
 			return CliOutput.WriteError(
 				stderr,
 				jsonMode,
-				ExitCode.RuntimeError,
-				"not_implemented",
-				$"The '{command}' command is not implemented in this build.",
-				$"Run assetripper {command} --help to see the planned usage.");
+				ExitCode.Usage,
+				"usage",
+				$"The '{command}' command requires a subcommand.",
+				$"Run assetripper {command} --help to see available usage.");
 		}
 
 		stdout.WriteLine(HelpText.Root);
@@ -194,7 +194,7 @@ public static class Program
 			"get" => ["--input", "--session", "--format", "--output", "--confirm"],
 			"search" => ["--input", "--session", "--limit", "--cursor"],
 			"session" => ["--input", "--timeout", "--no-wait", "--wait"],
-			"job" => ["--timeout", "--wait"],
+			"job" => ["--timeout"],
 			_ => [],
 		};
 

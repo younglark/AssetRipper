@@ -1,11 +1,9 @@
 using System.Text;
+using System.Text.Json;
 using AssetRipper.IO.Endian;
+using AssetRipper.IO.Files;
 using AssetRipper.IO.Files.SerializedFiles;
 using AssetRipper.IO.Files.SerializedFiles.Parser;
-
-using AssetRipper.IO.Files;
-
-using System.Text.Json;
 
 namespace AssetRipper.CLI.Tests;
 

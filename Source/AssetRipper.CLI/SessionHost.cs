@@ -101,7 +101,7 @@ internal static class SessionHost
 							response = job.Snapshot();
 						}
 					}
-					else if (active?.IsRunning == true && (request.Command == "close" || (request.Command == "inspect" && GetCommand(request.Args) == "get" && GetAssetArguments.Parse(request.Args).Output is not null)))
+					else if (active?.IsRunning == true && request.Command == "close")
 						response = Busy(request, active);
 					else if (request.Command is "export" or "export-one-shot")
 					{

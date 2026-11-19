@@ -342,7 +342,7 @@ A Session is a loaded set of game files that later commands can reuse without lo
 
 `--timeout` and `--no-wait` apply to `session start` only.
 
-Inspect commands (`list`, `get`, `search`) on a Session that is still `loading` exit `8` with a hint to run `session status`. On a Session that is already `failed`, they exit `1` with a hint to run `session start` again. After the Session is `ready`, `list`, `get`, and `search` may run while an export Job is in progress, except that `get --output` is treated as a write; see [Implementation notes and mismatches](#implementation-notes-and-mismatches).
+Inspect commands (`list`, `get`, `search`) on a Session that is still `loading` exit `8` with a hint to run `session status`. On a Session that is already `failed`, they exit `1` with a hint to run `session start` again. After the Session is `ready`, `list`, `get`, and `search` may run while an export Job is in progress, including `get --output`.
 
 `session close` ends the Session and releases its loaded data. It exits immediately when successful. Closing while an export Job is still running exits `8` and does not close the Session; the hint tells you to `job wait` or `job cancel` first. An idle Session ends after 30 minutes. After a process or machine restart, or after idle timeout or close, a previous Session identifier is not found (exit `5`). There is no public flag to change the idle timeout.
 
@@ -402,7 +402,7 @@ assetripper session close <id>
 
 One-shot commands (`--input` without a Session) load, perform one action, and exit. If a one-shot export returns a Job because of `--timeout` or `--no-wait`, the Job remains queryable until it finishes, fails, or is cancelled.
 
-On a single Session, only one mutating operation may run at a time. A conflicting write exits `8` with a hint naming the Job or operation to wait for. After the Session is `ready`, `list`, `search`, and `get` without `--output` may run during an export Job.
+On a single Session, only one mutating operation may run at a time. A conflicting write exits `8` with a hint naming the Job or operation to wait for. After the Session is `ready`, `list`, `search`, and `get` (including `get --output`) may run during an export Job. Only a second mutating export, or `session close` while a Job is running, is a conflict.
 
 ## Pagination
 
@@ -441,12 +441,9 @@ You do not need a `schema` command or MCP. Use this page plus `assetripper <comm
 This documentation follows the accepted spec. Where the current command differs from a literal reading of the spec, or where help is slightly narrower than the parser, the difference is recorded here instead of rewriting the spec.
 
 - `export` accepts `--wait` as the default (and rejects `--wait` together with `--no-wait`), but `export --help` does not currently list `--wait`. `session --help` does list it.
-- Invoking `export` or `get` without the required subcommand (`export unity-project` / `export primary-content`, or `get asset`) currently exits `1` with `code` `not_implemented` and a hint that the command is "not implemented in this build." The commands are implemented; the missing subcommand is incomplete usage. `list`, `search`, `session`, and `job` without a required subcommand or query correctly exit `2`. The spec treats unknown subcommands and invalid flags as usage errors (exit `2`). Use the subcommands listed above or `--help`.
-- The spec says `list`, `get`, and `search` may run while an export Job is running on a ready Session. The implementation allows `list`, `search`, and `get` to stdout during that Job, but `get --output` is treated as a mutating write: it exits `8` and does not create the file until the Job has finished or been cancelled.
 - Successful `session close` currently reports an additive status value `closed`, which is not one of the frozen load-status values (`loading`, `ready`, `failed`).
 - Error objects currently include an additive `message` field in addition to the stable `code` and `hint`.
 - The current implementation uses the additive property `id` for both Session and Job identifiers (a 32-character lowercase hex Session id, and a 64-character lowercase hex Job id). The stable contract requires that a Session identifier and a Job identifier be returned and reusable; it does not freeze those property names or formats.
 - `--confirm` compares the resolved directory or file name with ordinal, case-sensitive equality. Protected personal folder names (`Desktop`, `Documents`, `Downloads`) are compared case-insensitively, as the spec requires.
 - `search` in this version matches asset names only, as the spec's implementation decisions already state.
 
-No product behavior was changed for this documentation.
