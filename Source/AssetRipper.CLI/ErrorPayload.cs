@@ -18,7 +18,7 @@ internal sealed class ExportPayload
 {
 	public required string Status { get; init; }
 	public required string Output { get; init; }
-	public required string Project { get; init; }
+	public string? Project { get; init; }
 	public IReadOnlyList<string>? Files { get; init; }
 	public bool? Existing { get; init; }
 }
