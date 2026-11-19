@@ -1,3 +1,5 @@
+using AssetRipper.IO.Files;
+
 namespace AssetRipper.CLI;
 
 public static class Program
@@ -24,27 +26,37 @@ public static class Program
 		return Run(args, Console.Out, Console.Error, !Console.IsOutputRedirected, static name => Environment.GetEnvironmentVariable(name));
 	}
 
-	public static int Run(string[] args, TextWriter stdout, TextWriter stderr, bool stdoutIsTty, Func<string, string?> getEnvironmentVariable)
+	public static int Run(string[] args, TextWriter stdout, TextWriter stderr, bool stdoutIsTty, Func<string, string?> getEnvironmentVariable, FileSystem? fileSystem = null)
 	{
 		_ = getEnvironmentVariable;
 
 		bool jsonMode = CliOutput.IsJsonMode(stdoutIsTty, HasFlag(args, "--json"));
-		string? command = GetCommand(args);
+		List<string> positionals = GetPositionals(args);
+		string? command = positionals.FirstOrDefault();
 		bool hasDomainCommand = command is not null && KnownCommands.Contains(command);
 
-		if (!hasDomainCommand)
+		string? invalidFlag = GetInvalidFlag(args, command);
+		if (invalidFlag is not null)
 		{
-			string? invalidFlag = GetInvalidGlobalFlag(args);
-			if (invalidFlag is not null)
-			{
-				return CliOutput.WriteError(
-					stderr,
-					jsonMode,
-					ExitCode.Usage,
-					"usage",
-					$"Unknown option '{invalidFlag}'.",
-					"Run assetripper --help to see available options.");
-			}
+			return CliOutput.WriteError(
+				stderr,
+				jsonMode,
+				ExitCode.Usage,
+				"usage",
+				$"Unknown option '{invalidFlag}'.",
+				"Run assetripper --help to see available options.");
+		}
+
+		string? unknownCommand = GetUnknownCommand(positionals);
+		if (unknownCommand is not null)
+		{
+			return CliOutput.WriteError(
+				stderr,
+				jsonMode,
+				ExitCode.Usage,
+				"usage",
+				$"Unknown command '{unknownCommand}'.",
+				"Run assetripper --help to see available commands.");
 		}
 
 		if (args.Length == 0 || HasFlag(args, "--help"))
@@ -59,15 +71,9 @@ public static class Program
 			return ExitCode.Success;
 		}
 
-		if (command is not null && !KnownCommands.Contains(command))
+		if (command == "export" && positionals.Count > 1 && positionals[1] == "unity-project")
 		{
-			return CliOutput.WriteError(
-				stderr,
-				jsonMode,
-				ExitCode.Usage,
-				"usage",
-				$"Unknown command '{command}'.",
-				"Run assetripper --help to see available commands.");
+			return UnityProjectExport.Run(args, stdout, stderr, jsonMode, fileSystem ?? LocalFileSystem.Instance);
 		}
 
 		if (command is not null)
@@ -98,37 +104,86 @@ public static class Program
 		return false;
 	}
 
-	private static string? GetCommand(string[] args)
+	private static List<string> GetPositionals(string[] args)
 	{
-		for (int i = 0; i < args.Length; i++)
-		{
-			if (!args[i].StartsWith('-'))
-			{
-				return args[i];
-			}
-		}
-
-		return null;
-	}
-
-	private static string? GetInvalidGlobalFlag(string[] args)
-	{
+		List<string> positionals = [];
 		for (int i = 0; i < args.Length; i++)
 		{
 			string arg = args[i];
 			if (!arg.StartsWith('-'))
 			{
+				positionals.Add(arg);
+			}
+			else if (TakesValue(arg) && i + 1 < args.Length && !args[i + 1].StartsWith('-'))
+			{
+				i++;
+			}
+		}
+
+		return positionals;
+	}
+
+	private static bool TakesValue(string flag)
+	{
+		return flag is "--input" or "--session" or "--output" or "--confirm" or "--timeout"
+			or "--limit" or "--cursor" or "--name" or "--type" or "--format";
+	}
+
+	private static string? GetUnknownCommand(List<string> positionals)
+	{
+		if (positionals.Count == 0)
+		{
+			return null;
+		}
+
+		string command = positionals[0];
+		if (!KnownCommands.Contains(command))
+		{
+			return command;
+		}
+
+		if (positionals.Count < 2 || command == "search")
+		{
+			return null;
+		}
+
+		string subcommand = positionals[1];
+		bool known = command switch
+		{
+			"export" => subcommand is "unity-project" or "primary-content",
+			"list" => subcommand is "assets" or "bundles" or "scenes" or "collections" or "resources" or "failed-files",
+			"get" => subcommand == "asset",
+			"session" => subcommand is "start" or "status" or "close",
+			"job" => subcommand is "status" or "wait" or "cancel",
+			_ => false,
+		};
+		return known ? null : $"{command} {subcommand}";
+	}
+
+	private static string? GetInvalidFlag(string[] args, string? command)
+	{
+		string[] plannedFlags = command switch
+		{
+			"export" => ["--input", "--session", "--output", "--dry-run", "--confirm", "--timeout", "--no-wait", "--wait"],
+			"list" => ["--input", "--session", "--limit", "--cursor", "--name", "--type"],
+			"get" => ["--input", "--session", "--format", "--output", "--confirm"],
+			"search" => ["--input", "--session", "--limit", "--cursor"],
+			"session" => ["--input", "--timeout", "--no-wait", "--wait"],
+			"job" => ["--timeout", "--wait"],
+			_ => [],
+		};
+
+		foreach (string arg in args)
+		{
+			if (!arg.StartsWith('-'))
+			{
 				continue;
 			}
 
-			string flag = arg;
 			int separator = arg.IndexOf('=');
-			if (separator >= 0)
-			{
-				flag = arg[..separator];
-			}
-
-			if (!GlobalFlags.Contains(flag))
+			string flag = separator >= 0 ? arg[..separator] : arg;
+			bool takesValue = TakesValue(flag);
+			if ((!GlobalFlags.Contains(flag) && !plannedFlags.Contains(flag)) || (separator >= 0 && !takesValue))
 			{
 				return arg;
 			}

@@ -85,4 +85,16 @@ internal class HelpTests
 
 		await Assert.That(result.Stdout).Contains("\n\nEXIT CODES");
 	}
+
+	[Test]
+	public async Task ExportHelpDistinguishesImplementedAndPlannedBehavior()
+	{
+		CliResult result = Cli.Run(["export", "unity-project", "--help"]);
+		await Assert.That(result.Stdout).Contains("synchronous unity-project");
+		await Assert.That(result.Stdout).Contains("files that would be written without changing the disk");
+		await Assert.That(result.Stdout).Contains("--confirm=<directory name>");
+		await Assert.That(result.Stdout).Contains("existing: true");
+		await Assert.That(result.Stdout).DoesNotContain("refused even with --confirm");
+		await Assert.That(result.Stdout).Contains("not implemented in this build");
+	}
 }

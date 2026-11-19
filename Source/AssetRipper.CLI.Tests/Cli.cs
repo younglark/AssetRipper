@@ -1,14 +1,16 @@
+using AssetRipper.IO.Files;
+
 namespace AssetRipper.CLI.Tests;
 
 internal readonly record struct CliResult(int ExitCode, string Stdout, string Stderr);
 
 internal static class Cli
 {
-	public static CliResult Run(string[] args, bool stdoutIsTty = false, IReadOnlyDictionary<string, string?>? environment = null)
+	public static CliResult Run(string[] args, bool stdoutIsTty = false, IReadOnlyDictionary<string, string?>? environment = null, FileSystem? fileSystem = null)
 	{
 		using StringWriter stdout = new();
 		using StringWriter stderr = new();
-		int exitCode = Program.Run(args, stdout, stderr, stdoutIsTty, name => GetEnvironmentVariable(name, environment));
+		int exitCode = Program.Run(args, stdout, stderr, stdoutIsTty, name => GetEnvironmentVariable(name, environment), fileSystem);
 		return new CliResult(exitCode, stdout.ToString(), stderr.ToString());
 	}
 

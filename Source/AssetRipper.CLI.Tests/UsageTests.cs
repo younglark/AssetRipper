@@ -27,6 +27,17 @@ internal class UsageTests
 	}
 
 	[Test]
+	[Arguments("--yes")]
+	[Arguments("--allow-mutations")]
+	public async Task ThereIsNoGlobalYesOrAllowMutationsSwitch(string flag)
+	{
+		CliResult result = Cli.Run(["export", "unity-project", "--input", "Game", "--output", "Out", flag]);
+		await Assert.That(result.ExitCode).IsEqualTo(2);
+		await Assert.That(result.Stdout).IsEmpty();
+		await Assert.That(result.Stderr).Contains(flag);
+	}
+
+	[Test]
 	public async Task InvalidFlagIsNotTreatedAsADefaultRunEvenWhenHelpIsAlsoPresent()
 	{
 		CliResult result = Cli.Run(["--help", "--definitely-not-a-flag"]);
@@ -84,7 +95,7 @@ internal class UsageTests
 	[Test]
 	public async Task KnownUnimplementedCommandDoesNotHangAndExitsAsARuntimeError()
 	{
-		CliResult result = Cli.Run(["export", "unity-project", "--input", "./Game", "--output", "./Out"]);
+		CliResult result = Cli.Run(["export", "primary-content", "--input", "./Game", "--output", "./Out"]);
 
 		await Assert.That(result.ExitCode).IsEqualTo(1);
 		await Assert.That(result.Stdout).IsEmpty();
@@ -108,5 +119,112 @@ internal class UsageTests
 		await Assert.That(result.Stdout).Contains("--confirm");
 		await Assert.That(result.Stdout).Contains("EXAMPLES");
 		await Assert.That(result.Stdout).Contains("EXIT CODES");
+	}
+
+	[Test]
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task UnknownFlagsOnKnownCommandsAreUsageErrorsEvenWithHelp(bool help)
+	{
+		string[] args = help ? ["export", "--help", "--definitely-not-a-flag"] : ["export", "--definitely-not-a-flag"];
+		CliResult result = Cli.Run(args);
+
+		await Assert.That(result.ExitCode).IsEqualTo(2);
+		await Assert.That(result.Stdout).IsEmpty();
+		using JsonDocument document = JsonDocument.Parse(result.Stderr);
+		await Assert.That(document.RootElement.GetProperty("code").GetString()).IsEqualTo("usage");
+		await Assert.That(document.RootElement.GetProperty("hint").GetString()).Contains("--help");
+	}
+
+	[Test]
+	[Arguments("definitely-not-a-command", null)]
+	[Arguments("export", "definitely-not-a-subcommand")]
+	[Arguments("list", "definitely-not-a-kind")]
+	[Arguments("get", "definitely-not-asset")]
+	[Arguments("session", "definitely-not-a-subcommand")]
+	[Arguments("job", "definitely-not-a-subcommand")]
+	public async Task UnknownCommandPathsAreUsageErrorsEvenWithHelp(string command, string? subcommand)
+	{
+		foreach (bool help in new[] { false, true })
+		{
+			List<string> args = [command];
+			if (subcommand is not null)
+			{
+				args.Add(subcommand);
+			}
+			if (help)
+			{
+				args.Add("--help");
+			}
+
+			CliResult result = Cli.Run(args.ToArray());
+			await Assert.That(result.ExitCode).IsEqualTo(2);
+			await Assert.That(result.Stdout).IsEmpty();
+			using JsonDocument document = JsonDocument.Parse(result.Stderr);
+			await Assert.That(document.RootElement.GetProperty("code").GetString()).IsEqualTo("usage");
+			await Assert.That(document.RootElement.GetProperty("hint").GetString()).Contains("--help");
+		}
+	}
+
+	[Test]
+	[Arguments("export primary-content --input Game --input=Other --session=id --output Out --dry-run --confirm Out --timeout 60 --no-wait --wait")]
+	[Arguments("list assets --input Game --session=id --limit 100 --cursor token --name *.png --type Texture2D")]
+	[Arguments("get asset ref --input Game --session=id --format json --output out.json --confirm=out.json")]
+	[Arguments("search Player --input Game --session=id --limit 100 --cursor token")]
+	[Arguments("session start --input Game --timeout 60 --no-wait --wait")]
+	[Arguments("job wait id --timeout 60")]
+	public async Task PlannedOptionsAreRecognizedWithoutImplementingDomainCommands(string commandLine)
+	{
+		string[] args = commandLine.Split(' ');
+		CliResult result = Cli.Run(args);
+		await Assert.That(result.ExitCode).IsEqualTo(1);
+		await Assert.That(result.Stdout).IsEmpty();
+		using JsonDocument document = JsonDocument.Parse(result.Stderr);
+		await Assert.That(document.RootElement.GetProperty("code").GetString()).IsEqualTo("not_implemented");
+
+		CliResult help = Cli.Run([.. args, "--help"]);
+		await Assert.That(help.ExitCode).IsEqualTo(0);
+		await Assert.That(help.Stderr).IsEmpty();
+		await Assert.That(help.Stdout).Contains("EXAMPLES");
+	}
+
+	[Test]
+	[Arguments("export")]
+	[Arguments("list")]
+	[Arguments("get")]
+	[Arguments("search")]
+	[Arguments("session")]
+	[Arguments("job")]
+	public async Task UnknownFlagsOnEveryDomainCommandCannotBeHiddenByHelp(string command)
+	{
+		CliResult result = Cli.Run([command, "--help", "--unknown"]);
+		await Assert.That(result.ExitCode).IsEqualTo(2);
+		await Assert.That(result.Stdout).IsEmpty();
+		using JsonDocument document = JsonDocument.Parse(result.Stderr);
+		await Assert.That(document.RootElement.GetProperty("code").GetString()).IsEqualTo("usage");
+	}
+
+	[Test]
+	[Arguments("export --input Game unity-project")]
+	[Arguments("get --output out.json asset ref")]
+	[Arguments("session --input Game start")]
+	[Arguments("job --timeout 60 wait id")]
+	[Arguments("search --limit 20 Player")]
+	public async Task OptionValuesAreNotMistakenForSubcommands(string commandLine)
+	{
+		CliResult result = Cli.Run([.. commandLine.Split(' '), "--help"]);
+		await Assert.That(result.ExitCode).IsEqualTo(0);
+		await Assert.That(result.Stderr).IsEmpty();
+	}
+
+	[Test]
+	[Arguments("--help=unexpected")]
+	[Arguments("--json=unexpected")]
+	[Arguments("--version=unexpected")]
+	public async Task BooleanGlobalFlagsRejectValues(string flag)
+	{
+		CliResult result = Cli.Run([flag]);
+		await Assert.That(result.ExitCode).IsEqualTo(2);
+		await Assert.That(result.Stdout).IsEmpty();
 	}
 }
