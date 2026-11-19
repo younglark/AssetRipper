@@ -29,11 +29,27 @@ internal sealed class ExportManifest
 	public required IReadOnlyList<string> Inputs { get; init; }
 }
 
+internal sealed class InspectItem
+{
+	public required string Name { get; init; }
+	public string? Type { get; init; }
+	public string? Ref { get; init; }
+}
+
+internal sealed class ListPayload
+{
+	public required IReadOnlyList<InspectItem> Items { get; init; }
+	public bool? Truncated { get; init; }
+	public string? Next { get; init; }
+	public string? Hint { get; init; }
+}
+
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(ErrorPayload))]
 [JsonSerializable(typeof(VersionPayload))]
 [JsonSerializable(typeof(ExportPayload))]
 [JsonSerializable(typeof(ExportManifest))]
+[JsonSerializable(typeof(ListPayload))]
 internal partial class CliJsonContext : JsonSerializerContext
 {
 }

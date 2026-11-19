@@ -76,6 +76,11 @@ public static class Program
 			return UnityProjectExport.Run(args, stdout, stderr, jsonMode, fileSystem ?? LocalFileSystem.Instance);
 		}
 
+		if (command is "list" or "search")
+		{
+			return InspectCommand.Run(args, stdout, stderr, jsonMode, fileSystem ?? LocalFileSystem.Instance);
+		}
+
 		if (command is not null)
 		{
 			return CliOutput.WriteError(
