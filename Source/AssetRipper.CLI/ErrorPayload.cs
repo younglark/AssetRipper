@@ -44,12 +44,20 @@ internal sealed class ListPayload
 	public string? Hint { get; init; }
 }
 
+internal sealed class GetAssetPayload
+{
+	public required string Path { get; init; }
+	public required string Format { get; init; }
+	public required long Size { get; init; }
+}
+
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(ErrorPayload))]
 [JsonSerializable(typeof(VersionPayload))]
 [JsonSerializable(typeof(ExportPayload))]
 [JsonSerializable(typeof(ExportManifest))]
 [JsonSerializable(typeof(ListPayload))]
+[JsonSerializable(typeof(GetAssetPayload))]
 internal partial class CliJsonContext : JsonSerializerContext
 {
 }

@@ -81,6 +81,11 @@ public static class Program
 			return InspectCommand.Run(args, stdout, stderr, jsonMode, fileSystem ?? LocalFileSystem.Instance);
 		}
 
+		if (command == "get" && positionals.Count > 1 && positionals[1] == "asset")
+		{
+			return GetAssetCommand.Run(args, stdout, stderr, jsonMode, fileSystem ?? LocalFileSystem.Instance);
+		}
+
 		if (command is not null)
 		{
 			return CliOutput.WriteError(

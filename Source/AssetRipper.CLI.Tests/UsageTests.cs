@@ -95,7 +95,7 @@ internal class UsageTests
 	[Test]
 	public async Task KnownUnimplementedCommandDoesNotHangAndExitsAsARuntimeError()
 	{
-		CliResult result = Cli.Run(["get", "asset", "ref", "--input", "./Game"]);
+		CliResult result = Cli.Run(["session", "start", "--input", "./Game"]);
 
 		await Assert.That(result.ExitCode).IsEqualTo(1);
 		await Assert.That(result.Stdout).IsEmpty();
