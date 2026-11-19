@@ -95,7 +95,7 @@ internal class UsageTests
 	[Test]
 	public async Task KnownUnimplementedCommandDoesNotHangAndExitsAsARuntimeError()
 	{
-		CliResult result = Cli.Run(["export", "primary-content", "--input", "./Game", "--output", "./Out"]);
+		CliResult result = Cli.Run(["list", "assets", "--input", "./Game"]);
 
 		await Assert.That(result.ExitCode).IsEqualTo(1);
 		await Assert.That(result.Stdout).IsEmpty();
@@ -167,7 +167,7 @@ internal class UsageTests
 	}
 
 	[Test]
-	[Arguments("export primary-content --input Game --input=Other --session=id --output Out --dry-run --confirm Out --timeout 60 --no-wait --wait")]
+	[Arguments("export primary-content --session=id --output Out --dry-run --confirm Out --timeout 60 --no-wait --wait")]
 	[Arguments("list assets --input Game --session=id --limit 100 --cursor token --name *.png --type Texture2D")]
 	[Arguments("get asset ref --input Game --session=id --format json --output out.json --confirm=out.json")]
 	[Arguments("search Player --input Game --session=id --limit 100 --cursor token")]

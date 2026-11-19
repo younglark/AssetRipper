@@ -1,5 +1,6 @@
 using AssetRipper.Assets.Bundles;
 using AssetRipper.Export.Configuration;
+using AssetRipper.Export.PrimaryContent;
 using AssetRipper.Export.UnityProjects;
 using AssetRipper.Import.Logging;
 using AssetRipper.IO.Files;
@@ -73,9 +74,9 @@ internal static class UnityProjectExport
 
 		lock (ExportLock)
 		{
-			if (!options.DryRun && TryGetExistingExport(output, inputs, fileSystem))
+			if (!options.DryRun && TryGetExistingExport(output, inputs, options.Kind, fileSystem))
 			{
-				WriteResult(stdout, jsonMode, "completed", output, existing: true);
+				WriteResult(stdout, jsonMode, options.Kind, "completed", output, existing: true);
 				return ExitCode.Success;
 			}
 
@@ -103,8 +104,8 @@ internal static class UnityProjectExport
 					{
 						VirtualFileSystem preview = new();
 						const string previewRoot = "/preview";
-						handler.Export(gameData, previewRoot, preview);
-						WriteResult(stdout, jsonMode, "dry_run", output, ListExportedFiles(preview, previewRoot));
+						ExportKind(options.Kind, handler, settings, gameData, previewRoot, preview);
+						WriteResult(stdout, jsonMode, options.Kind, "dry_run", output, ListExportedFiles(preview, previewRoot));
 						return ExitCode.Success;
 					}
 
@@ -113,14 +114,14 @@ internal static class UnityProjectExport
 					{
 						return RefuseNonEmptyOutput(stderr, jsonMode);
 					}
-					handler.Export(gameData, output, fileSystem);
-					WriteManifest(output, inputs, fileSystem);
+					ExportKind(options.Kind, handler, settings, gameData, output, fileSystem);
+					WriteManifest(output, inputs, options.Kind, fileSystem);
 				}
 				finally
 				{
 					gameData.AssemblyManager.Dispose();
 				}
-				WriteResult(stdout, jsonMode, "completed", output);
+				WriteResult(stdout, jsonMode, options.Kind, "completed", output);
 				return ExitCode.Success;
 			}
 			catch (Exception exception)
@@ -185,7 +186,19 @@ internal static class UnityProjectExport
 			.OrderBy(input => input, StringComparer.Ordinal)];
 	}
 
-	private static bool TryGetExistingExport(string output, IReadOnlyList<string> inputs, FileSystem fileSystem)
+	private static void ExportKind(string kind, ExportHandler handler, FullConfiguration settings, GameData gameData, string destination, FileSystem fileSystem)
+	{
+		if (kind == UnityProjectKind)
+		{
+			handler.Export(gameData, destination, fileSystem);
+			return;
+		}
+
+		settings.ExportRootPath = destination;
+		PrimaryContentExporter.CreateDefault(gameData, settings).Export(gameData.GameBundle, settings, fileSystem);
+	}
+
+	private static bool TryGetExistingExport(string output, IReadOnlyList<string> inputs, string kind, FileSystem fileSystem)
 	{
 		string path = fileSystem.Path.Join(output, ManifestFileName);
 		if (!fileSystem.File.Exists(path))
@@ -196,7 +209,7 @@ internal static class UnityProjectExport
 		try
 		{
 			ExportManifest? manifest = JsonSerializer.Deserialize(fileSystem.File.ReadAllText(path), CliJsonContext.Default.ExportManifest);
-			if (manifest is null || manifest.Kind != UnityProjectKind || manifest.Inputs is null)
+			if (manifest is null || manifest.Kind != kind || manifest.Inputs is null)
 			{
 				return false;
 			}
@@ -209,20 +222,20 @@ internal static class UnityProjectExport
 		}
 	}
 
-	private static void WriteManifest(string output, IReadOnlyList<string> inputs, FileSystem fileSystem)
+	private static void WriteManifest(string output, IReadOnlyList<string> inputs, string kind, FileSystem fileSystem)
 	{
 		ExportManifest manifest = new()
 		{
-			Kind = UnityProjectKind,
+			Kind = kind,
 			Inputs = NormalizeInputs(inputs, fileSystem),
 		};
 		string path = fileSystem.Path.Join(output, ManifestFileName);
 		fileSystem.File.WriteAllText(path, JsonSerializer.Serialize(manifest, CliJsonContext.Default.ExportManifest));
 	}
 
-	private static void WriteResult(TextWriter stdout, bool jsonMode, string status, string output, IReadOnlyList<string>? files = null, bool existing = false)
+	private static void WriteResult(TextWriter stdout, bool jsonMode, string kind, string status, string output, IReadOnlyList<string>? files = null, bool existing = false)
 	{
-		string project = Path.Combine(output, "ExportedProject");
+		string? project = kind == UnityProjectKind ? Path.Combine(output, "ExportedProject") : null;
 		if (jsonMode)
 		{
 			ExportPayload payload = new() { Status = status, Output = output, Project = project, Files = files, Existing = existing ? true : null };
@@ -230,9 +243,11 @@ internal static class UnityProjectExport
 		}
 		else
 		{
+			string label = kind == UnityProjectKind ? "Unity Project Export" : "Primary Content Export";
+			string target = project ?? output;
 			stdout.WriteLine(existing
-				? $"Unity Project Export {status} (existing): {project}"
-				: $"Unity Project Export {status}: {project}");
+				? $"{label} {status} (existing): {target}"
+				: $"{label} {status}: {target}");
 			if (files is not null)
 			{
 				foreach (string file in files)

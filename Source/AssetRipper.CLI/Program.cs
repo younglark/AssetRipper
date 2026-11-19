@@ -71,7 +71,7 @@ public static class Program
 			return ExitCode.Success;
 		}
 
-		if (command == "export" && positionals.Count > 1 && positionals[1] == "unity-project")
+		if (command == "export" && positionals.Count > 1 && positionals[1] is "unity-project" or "primary-content")
 		{
 			return UnityProjectExport.Run(args, stdout, stderr, jsonMode, fileSystem ?? LocalFileSystem.Instance);
 		}

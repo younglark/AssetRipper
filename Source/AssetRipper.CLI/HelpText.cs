@@ -46,10 +46,10 @@ Usage: assetripper export unity-project|primary-content --output <dir> [options]
 
 Export loaded assets as a Unity project or as their primary decoded files.
 
-This build supports synchronous unity-project with repeatable --input and required --output.
+This build supports synchronous unity-project and primary-content with repeatable --input and required --output.
 --dry-run previews the files that would be written without changing the disk, including when the output directory is not empty.
 A non-empty output directory is refused unless it is an Existing export of the same inputs, or --confirm=<directory name> is passed. A second identical export reports existing: true and does not write again.
-Primary Content Export, Sessions, --timeout, and --no-wait are not implemented in this build.
+Sessions, --timeout, and --no-wait are not implemented in this build.
 The remaining options below describe the planned CLI contract.
 
 OPTIONS

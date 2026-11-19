@@ -2,6 +2,7 @@ namespace AssetRipper.CLI;
 
 internal sealed class UnityExportArguments
 {
+	public string Kind { get; private set; } = "";
 	public List<string> Inputs { get; } = [];
 	public string Output { get; private set; } = "";
 	public bool DryRun { get; private set; }
@@ -53,10 +54,11 @@ internal sealed class UnityExportArguments
 					break;
 			}
 		}
-		if (!positionals.SequenceEqual(new[] { "export", "unity-project" }))
+		if (positionals.Count != 2 || positionals[0] != "export" || positionals[1] is not ("unity-project" or "primary-content"))
 		{
 			throw new ArgumentException("Unexpected arguments. Run assetripper export --help.");
 		}
+		result.Kind = positionals[1];
 		if (result.Output.Length == 0)
 		{
 			throw new ArgumentException("Pass --output <dir>.");
