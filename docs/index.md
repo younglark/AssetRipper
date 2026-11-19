@@ -37,6 +37,8 @@ AssetRipper supports Unity versions from `3.5.0` to `6000.4.X`. However, support
 
 There is also a [community guide for Mac users](https://assetripper.github.io/AssetRipper/articles/RunningOnMac.html).
 
+A [command-line interface](articles/CommandLine.md) is also available for agents, CI, and scripts.
+
 # Premium Edition
 
 There is a premium edition of AssetRipper. This edition includes additional [features and improvements](https://assetripper.github.io/AssetRipper/articles/PremiumFeatures.html).

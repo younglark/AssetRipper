@@ -16,6 +16,10 @@ AssetRipper supports Unity versions from `3.5.0` to `6000.4.X`. However, support
 
 [Downloads](https://assetripper.com/download.html)
 
+## Command-line interface
+
+A first-version `assetripper` command is available for agents, CI, and scripts. See the [command-line interface documentation](docs/articles/CommandLine.md).
+
 ## Premium Edition
 
 There is a premium edition of AssetRipper. This edition includes additional [features and improvements](https://assetripper.com/premium/features/).

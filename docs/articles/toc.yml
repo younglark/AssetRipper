@@ -9,6 +9,8 @@
 
 - name: Usage Guide
   items:
+    - name: Command Line Interface
+      href: CommandLine.md
     - name: Common Issues
       href: CommonIssues.md
     - name: Running on Mac
