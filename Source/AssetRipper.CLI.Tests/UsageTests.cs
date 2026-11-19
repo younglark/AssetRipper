@@ -93,17 +93,17 @@ internal class UsageTests
 	}
 
 	[Test]
-	public async Task KnownUnimplementedCommandDoesNotHangAndExitsAsARuntimeError()
+	public async Task MissingJobDoesNotHangAndExitsNotFound()
 	{
 		CliResult result = Cli.Run(["job", "status", "example-job"]);
 
-		await Assert.That(result.ExitCode).IsEqualTo(1);
+		await Assert.That(result.ExitCode).IsEqualTo(5);
 		await Assert.That(result.Stdout).IsEmpty();
 		using JsonDocument document = JsonDocument.Parse(result.Stderr);
-		await Assert.That(document.RootElement.GetProperty("code").GetString()).IsEqualTo("not_implemented");
+		await Assert.That(document.RootElement.GetProperty("code").GetString()).IsEqualTo("not_found");
 		string? hint = document.RootElement.GetProperty("hint").GetString();
 		await Assert.That(hint).IsNotNull();
-		await Assert.That(hint!).Contains("--help");
+		await Assert.That(hint!).Contains("Job id");
 	}
 
 	[Test]
@@ -167,16 +167,16 @@ internal class UsageTests
 	}
 
 	[Test]
-	[Arguments("export primary-content --session=id --output Out --dry-run --confirm Out --timeout 60 --no-wait --wait")]
+	[Arguments("export primary-content --session=id --output Out --dry-run --confirm Out --timeout 60 --no-wait")]
 	[Arguments("job wait id --timeout 60")]
-	public async Task PlannedOptionsAreRecognizedWithoutImplementingDomainCommands(string commandLine)
+	public async Task DeferredOptionsAreRecognizedBeforeMissingSource(string commandLine)
 	{
 		string[] args = commandLine.Split(' ');
 		CliResult result = Cli.Run(args);
-		await Assert.That(result.ExitCode).IsEqualTo(1);
+		await Assert.That(result.ExitCode).IsEqualTo(5);
 		await Assert.That(result.Stdout).IsEmpty();
 		using JsonDocument document = JsonDocument.Parse(result.Stderr);
-		await Assert.That(document.RootElement.GetProperty("code").GetString()).IsEqualTo("not_implemented");
+		await Assert.That(document.RootElement.GetProperty("code").GetString()).IsEqualTo("not_found");
 
 		CliResult help = Cli.Run([.. args, "--help"]);
 		await Assert.That(help.ExitCode).IsEqualTo(0);

@@ -46,11 +46,12 @@ Usage: assetripper export unity-project|primary-content --output <dir> [options]
 
 Export loaded assets as a Unity project or as their primary decoded files.
 
-This build supports synchronous unity-project and primary-content with repeatable --input and required --output.
+Use repeatable --input or a ready --session, and required --output. Export waits for completion by default.
 --dry-run previews the files that would be written without changing the disk, including when the output directory is not empty.
 A non-empty output directory is refused unless it is an Existing export of the same inputs, or --confirm=<directory name> is passed. A second identical export reports existing: true and does not write again.
-Export with --session, --timeout, and --no-wait is not implemented in this build.
-The remaining options below describe the planned CLI contract.
+--timeout and --no-wait leave a queryable Job running after this command exits (exit 0, not 8).
+Run job wait <id> to retrieve completion. Progress goes to stderr only.
+Only one write runs per Session. A conflict exits 8 and names the Job to wait for.
 
 OPTIONS
   --input <path>       Game file or directory to load. Repeatable. Mutually exclusive with --session.
@@ -67,6 +68,8 @@ EXAMPLES
   assetripper export unity-project --input ./Game --output ./ExportedProject
   assetripper export primary-content --input ./Game --output ./Content --dry-run
   assetripper export unity-project --session <id> --output ./ExportedProject --timeout 60
+  assetripper export primary-content --input ./Game --output ./Content --no-wait
+  assetripper job wait <id>
 
 
 """ + ExitCodes;
@@ -147,6 +150,7 @@ Inspect a ready Session with --session <id> instead of --input. Inspecting loadi
 exits 8; inspecting failed exits 1. Use session status to wait, or start again after failure.
 Sessions are local only, hold data in memory, and end after 30 minutes idle or close.
 An ended Session (including after a process or machine restart) exits 5.
+close during an export Job exits 8; use job wait or job cancel before closing.
 
 OPTIONS
   --input <path>       Game file or directory to load (start only). Repeatable.
@@ -173,6 +177,12 @@ Usage: assetripper job status <id>
        assetripper job cancel <id>
 
 A Job is a long-running export that can be queried until it finishes.
+status reports running, completed, dry_run, failed, or cancelled. A running Job includes
+its id and a hint to run job wait. wait waits for completion by default; --timeout
+returns status: running with exit 0, not 8. Missing or unknown Job ids exit 5.
+cancel stops export I/O cooperatively, leaving partial files in place without a
+successful export manifest. A later export to that non-empty output needs --confirm.
+Jobs are local and queryable while their owner lives (30 minutes idle after completion).
 
 OPTIONS
   --timeout <seconds>  Stop waiting after this many seconds and leave the Job queryable (wait only)

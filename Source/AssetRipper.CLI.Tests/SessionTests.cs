@@ -323,7 +323,7 @@ internal class SessionTests
 		return data.RootElement.GetProperty("id").GetString()!;
 	}
 
-	private static string CreateGame()
+	internal static string CreateGame()
 	{
 		string directory = Path.Combine(Path.GetTempPath(), "assetripper-session-test-" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(directory);

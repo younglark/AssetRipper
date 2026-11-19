@@ -23,6 +23,7 @@ internal sealed class SessionRequest
 internal sealed class SessionResponse
 {
 	public SessionPayload? Session { get; init; }
+	public ExportPayload? Job { get; init; }
 	public int ExitCode { get; init; }
 	public string Stdout { get; init; } = "";
 	public string Stderr { get; init; } = "";
@@ -129,12 +130,17 @@ internal static class SessionCommand
 				throw new ArgumentException("Use session status <id> or session close <id>; loading options are for session start only.");
 			}
 
-			SessionResponse? result = Send(positionals[2], new() { Command = action });
+			SessionResponse? result = Send(positionals[2], new() { Command = action, JsonMode = jsonMode });
 			if (result is null)
 			{
 				return NotFound(stderr, jsonMode);
 			}
 
+			if (result.ExitCode != 0)
+			{
+				stderr.Write(result.Stderr);
+				return result.ExitCode;
+			}
 			WriteSession(stdout, jsonMode, result.Session!);
 			return result.ExitCode;
 		}
@@ -148,7 +154,7 @@ internal static class SessionCommand
 		}
 	}
 
-	private static Process StartHost(string id, List<string> inputs, Func<string, string?> environment)
+	internal static Process StartHost(string id, List<string> inputs, Func<string, string?> environment)
 	{
 		string assembly = Path.Combine(AppContext.BaseDirectory, "assetripper.dll");
 		ProcessStartInfo start;
@@ -180,7 +186,7 @@ internal static class SessionCommand
 			start.ArgumentList.Add(input);
 		}
 
-		foreach (string name in new[] { "ASSETRIPPER_TEST_SESSION_IDLE_MS", "ASSETRIPPER_TEST_SESSION_LOAD_DELAY_MS" })
+		foreach (string name in new[] { "ASSETRIPPER_TEST_SESSION_IDLE_MS", "ASSETRIPPER_TEST_SESSION_LOAD_DELAY_MS", "ASSETRIPPER_TEST_EXPORT_DELAY_MS", "ASSETRIPPER_TEST_EXPORT_WRITE_DELAY_MS" })
 		{
 			start.Environment.Remove(name);
 			if (environment(name) is string value)

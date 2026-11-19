@@ -46,6 +46,8 @@ internal static class SessionHost
 			idle = TimeSpan.FromMilliseconds(idleMs);
 		}
 
+		Dictionary<string, ExportJob> jobs = [];
+		ExportJob? active = null;
 		string socketPath = SessionCommand.SocketPath(id);
 		using Socket listener = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
 		listener.Bind(new UnixDomainSocketEndPoint(socketPath));
@@ -59,8 +61,15 @@ internal static class SessionHost
 		{
 			while (true)
 			{
-				using CancellationTokenSource timeout = new(idle);
-				using Socket connection = await listener.AcceptAsync(timeout.Token);
+				Task? running = active?.IsRunning == true ? active.Completion : null;
+				using CancellationTokenSource timeout = new(running is not null ? Timeout.InfiniteTimeSpan : idle);
+				Task<Socket> accepting = listener.AcceptAsync(timeout.Token).AsTask();
+				if (running is not null)
+				{
+					await Task.WhenAny(accepting, running);
+					timeout.CancelAfter(idle);
+				}
+				using Socket connection = await accepting;
 				using NetworkStream pipe = new(connection);
 				try
 				{
@@ -81,10 +90,49 @@ internal static class SessionHost
 						Hint = status == "loading" ? $"Run assetripper session status {id}." : status == "failed" ? "Run assetripper session start again with readable inputs." : null,
 						Message = loading.Exception?.GetBaseException().Message,
 					};
-					SessionResponse response = request.Command == "inspect"
-						? Inspect(request, state, loading) : new() { Session = state };
+					SessionResponse response;
+					if (request.Command.StartsWith("job-", StringComparison.Ordinal))
+					{
+						if (request.Args.Length != 1 || !jobs.TryGetValue(request.Args[0], out ExportJob? job))
+							response = Error(request, ExitCode.NotFound, "not_found", "The Job was not found.", "Check the Job id returned by export.");
+						else
+						{
+							if (request.Command == "job-cancel") job.Cancel();
+							response = job.Snapshot();
+						}
+					}
+					else if (active?.IsRunning == true && (request.Command == "close" || (request.Command == "inspect" && GetCommand(request.Args) == "get" && GetAssetArguments.Parse(request.Args).Output is not null)))
+						response = Busy(request, active);
+					else if (request.Command is "export" or "export-one-shot")
+					{
+						if (active?.IsRunning == true) response = Busy(request, active);
+						else if (request.Command == "export" && state.Status != "ready") response = Inspect(request, state, loading);
+						else
+						{
+							UnityExportArguments options = UnityExportArguments.Parse(request.Args);
+							options.Inputs.Clear();
+							options.Inputs.AddRange(inputs);
+							using StringWriter checkOut = new();
+							using StringWriter checkError = new();
+							if (UnityProjectExport.CheckDestination(options, checkOut, checkError, request.JsonMode, LocalFileSystem.Instance) is int checkResult)
+								response = new() { ExitCode = checkResult, Stdout = checkOut.ToString(), Stderr = checkError.ToString() };
+							else
+							{
+								active = new(id, options, loading);
+								jobs.Add(active.Id, active);
+								if (request.Command == "export-one-shot")
+								{
+									_ = ReleaseOneShotData(active.Completion, loading);
+									// The Job now owns the load; keep only the small queryable results here.
+									loading = Task.FromCanceled<GameData>(new CancellationToken(true));
+								}
+								response = active.Started;
+							}
+						}
+					}
+					else response = request.Command == "inspect" ? Inspect(request, state, loading) : new() { Session = state };
 					await writer.WriteLineAsync(JsonSerializer.Serialize(response, CliJsonContext.Default.SessionResponse));
-					if (request.Command == "close")
+					if (request.Command == "close" && response.ExitCode == 0)
 					{
 						break;
 					}
@@ -115,7 +163,30 @@ internal static class SessionHost
 		return ExitCode.Success;
 	}
 
-	private static string GetCommand(string[] args) => args.First(arg => arg is "get" or "list" or "search");
+	private static async Task ReleaseOneShotData(Task completion, Task<GameData> loading)
+	{
+		await completion;
+		try
+		{
+			GameData data = await loading;
+			data.AssemblyManager.Dispose();
+		}
+		catch (Exception)
+		{
+			// A failed load has no completed GameData to release.
+		}
+	}
+
+	private static SessionResponse Busy(SessionRequest request, ExportJob job) => Error(request, ExitCode.Retryable, "session_busy", "An export Job is already running on this Session.", $"Run assetripper job wait {job.Id} or assetripper job cancel {job.Id} before retrying.");
+
+	private static SessionResponse Error(SessionRequest request, int exit, string code, string message, string hint)
+	{
+		using StringWriter stderr = new();
+		CliOutput.WriteError(stderr, request.JsonMode, exit, code, message, hint);
+		return new() { ExitCode = exit, Stderr = stderr.ToString() };
+	}
+
+	private static string GetCommand(string[] args) => Program.GetCommandName(args) ?? "";
 
 	private static SessionResponse Inspect(SessionRequest request, SessionPayload state, Task<GameData> loading)
 	{

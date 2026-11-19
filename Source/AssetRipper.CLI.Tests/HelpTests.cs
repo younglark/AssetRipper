@@ -87,14 +87,15 @@ internal class HelpTests
 	}
 
 	[Test]
-	public async Task ExportHelpDistinguishesImplementedAndPlannedBehavior()
+	public async Task ExportHelpDocumentsSessionAndDeferredExecution()
 	{
 		CliResult result = Cli.Run(["export", "unity-project", "--help"]);
-		await Assert.That(result.Stdout).Contains("synchronous unity-project");
+		await Assert.That(result.Stdout).Contains("Export waits for completion by default");
 		await Assert.That(result.Stdout).Contains("files that would be written without changing the disk");
 		await Assert.That(result.Stdout).Contains("--confirm=<directory name>");
 		await Assert.That(result.Stdout).Contains("existing: true");
 		await Assert.That(result.Stdout).DoesNotContain("refused even with --confirm");
-		await Assert.That(result.Stdout).Contains("not implemented in this build");
+		await Assert.That(result.Stdout).DoesNotContain("not implemented in this build");
+		await Assert.That(result.Stdout).Contains("--timeout").And.Contains("--no-wait").And.Contains("job wait <id>").And.Contains("exit 0, not 8");
 	}
 }

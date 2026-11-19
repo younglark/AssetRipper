@@ -76,7 +76,7 @@ public static class Program
 
 		if (command == "export" && positionals.Count > 1 && positionals[1] is "unity-project" or "primary-content")
 		{
-			return UnityProjectExport.Run(args, stdout, stderr, jsonMode, fileSystem ?? LocalFileSystem.Instance);
+			return UnityProjectExport.Run(args, stdout, stderr, jsonMode, fileSystem ?? LocalFileSystem.Instance, getEnvironmentVariable);
 		}
 
 		if (command is "list" or "search")
@@ -92,6 +92,11 @@ public static class Program
 		if (command == "session")
 		{
 			return SessionCommand.Run(args, stdout, stderr, jsonMode, getEnvironmentVariable);
+		}
+
+		if (command == "job")
+		{
+			return JobCommand.Run(args, stdout, stderr, jsonMode);
 		}
 
 		if (command is not null)
@@ -121,6 +126,8 @@ public static class Program
 
 		return false;
 	}
+
+	internal static string? GetCommandName(string[] args) => GetPositionals(args).FirstOrDefault();
 
 	private static List<string> GetPositionals(string[] args)
 	{

@@ -234,16 +234,16 @@ internal class UnityProjectExportTests
 	}
 
 	[Test]
-	[Arguments("--no-wait")]
-	[Arguments("--timeout=60")]
-	public async Task DeferredExecutionOptionsAreExplicitlyUnsupportedAndDoNotExport(string option)
+	[Arguments("--timeout=NaN")]
+	[Arguments("--no-wait --wait")]
+	public async Task InvalidDeferredExecutionOptionsDoNotExport(string option)
 	{
 		VirtualFileSystem fileSystem = CreateGame();
-		CliResult result = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output", option], fileSystem: fileSystem);
-		await Assert.That(result.ExitCode).IsEqualTo(1);
+		CliResult result = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output", .. option.Split(' ')], fileSystem: fileSystem);
+		await Assert.That(result.ExitCode).IsEqualTo(2);
 		await Assert.That(fileSystem.Directory.Exists("/output")).IsFalse();
 		using JsonDocument error = JsonDocument.Parse(result.Stderr);
-		await Assert.That(error.RootElement.GetProperty("code").GetString()).IsEqualTo("not_implemented");
+		await Assert.That(error.RootElement.GetProperty("code").GetString()).IsEqualTo("usage");
 	}
 
 	[Test]

@@ -16,6 +16,8 @@ internal sealed class VersionPayload
 
 internal sealed class ExportPayload
 {
+	public string? Id { get; set; }
+	public string? Hint { get; set; }
 	public required string Status { get; init; }
 	public required string Output { get; init; }
 	public string? Project { get; init; }

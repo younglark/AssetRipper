@@ -7,13 +7,16 @@ internal sealed class UnityExportArguments
 	public string Output { get; private set; } = "";
 	public bool DryRun { get; private set; }
 	public string? Confirm { get; private set; }
-	public bool Unsupported { get; private set; }
+	public string? Session { get; private set; }
+	public double? Timeout { get; private set; }
+	public bool NoWait { get; private set; }
 
 	public static UnityExportArguments Parse(string[] args)
 	{
 		UnityExportArguments result = new();
 		List<string> positionals = [];
 		bool session = false;
+		bool wait = false;
 		foreach ((string flag, string? value) in ReadArguments(args))
 		{
 			switch (flag)
@@ -33,11 +36,16 @@ internal sealed class UnityExportArguments
 					break;
 				case "--session":
 					session = true;
-					result.Unsupported = true;
+					if (result.Session is not null) throw new ArgumentException("Pass --session only once.");
+					result.Session = value;
 					break;
 				case "--timeout":
+					if (result.Timeout is not null || !double.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out double seconds) || !double.IsFinite(seconds) || seconds < 0)
+						throw new ArgumentException("Pass --timeout once with a non-negative number of seconds.");
+					result.Timeout = seconds;
+					break;
 				case "--no-wait":
-					result.Unsupported = true;
+					result.NoWait = true;
 					break;
 				case "--confirm":
 					if (result.Confirm is not null)
@@ -47,6 +55,8 @@ internal sealed class UnityExportArguments
 					result.Confirm = value!;
 					break;
 				case "--wait":
+					wait = true;
+					break;
 				case "--json":
 					break;
 				default:
@@ -71,6 +81,7 @@ internal sealed class UnityExportArguments
 		{
 			throw new ArgumentException("Pass exactly one of --input <path> (repeatable) or --session <id>; they are mutually exclusive.");
 		}
+		if (wait && result.NoWait) throw new ArgumentException("Do not combine --wait and --no-wait.");
 		return result;
 	}
 

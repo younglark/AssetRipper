@@ -11,12 +11,14 @@ namespace AssetRipper.CLI;
 
 internal static class UnityProjectExport
 {
-		public static int Run(string[] args, TextWriter stdout, TextWriter stderr, bool jsonMode, FileSystem fileSystem)
+	public static int Run(string[] args, TextWriter stdout, TextWriter stderr, bool jsonMode, FileSystem fileSystem, Func<string, string?> environment)
 	{
 		try
 		{
 			UnityExportArguments options = UnityExportArguments.Parse(args);
-			return Execute(options, stdout, stderr, jsonMode, fileSystem);
+			return options.Session is not null || options.NoWait || options.Timeout is not null
+				? JobCommand.Export(options, args, stdout, stderr, jsonMode, environment)
+				: Execute(options, stdout, stderr, jsonMode, fileSystem);
 		}
 		catch (ArgumentException exception)
 		{
@@ -28,60 +30,18 @@ internal static class UnityProjectExport
 		}
 	}
 
-	private static int Execute(UnityExportArguments options, TextWriter stdout, TextWriter stderr, bool jsonMode, FileSystem fileSystem)
+	internal static int Execute(UnityExportArguments options, TextWriter stdout, TextWriter stderr, bool jsonMode, FileSystem fileSystem, GameData? loaded = null, CancellationToken cancellationToken = default)
 	{
-		if (options.Unsupported)
-		{
-			return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "not_implemented", "Session and deferred export options are not implemented in this build.", "Use --input and omit --session, --timeout, and --no-wait for a synchronous export.");
-		}
 		string output = options.Output;
 
-		string name = Path.GetFileName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(output)));
-		if (new[] { "Desktop", "Documents", "Downloads" }.Contains(name, StringComparer.OrdinalIgnoreCase))
-		{
-			return CliOutput.WriteError(stderr, jsonMode, ExitCode.Usage, "usage", "The output is a protected personal directory.", "Choose a different --output directory.");
-		}
-
+		if (CheckProtectedDestination(options.Output, stderr, jsonMode) is int protectedError) return protectedError;
+		if (loaded is null && CheckInputs(options.Inputs, stderr, jsonMode, fileSystem) is int inputError) return inputError;
 		List<string> inputs = options.Inputs;
-		foreach (string input in inputs)
-		{
-			try
-			{
-				if (fileSystem.Directory.Exists(input))
-				{
-					foreach (string file in fileSystem.Directory.EnumerateFiles(input, "*", SearchOption.AllDirectories))
-					{
-						using Stream stream = fileSystem.File.OpenRead(file);
-					}
-				}
-				else
-				{
-					using Stream stream = fileSystem.File.OpenRead(input);
-				}
-			}
-			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-			{
-				return CliOutput.WriteError(stderr, jsonMode, ExitCode.NotFound, "not_found", $"Input path '{input}' is missing or unreadable: {exception.Message}", "Pass an existing, readable --input path.");
-			}
-		}
-
-		if (fileSystem.File.Exists(output))
-		{
-			return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "output_is_file", "The output path is an existing file.", "Choose a new or empty --output directory.");
-		}
+		if (CheckDestination(options, stdout, stderr, jsonMode, fileSystem) is int destinationResult) return destinationResult;
 
 		lock (CliSync.LoadLock)
 		{
-			if (!options.DryRun && TryGetExistingExport(output, inputs, options.Kind, fileSystem))
-			{
-				WriteResult(stdout, jsonMode, options.Kind, "completed", output, existing: true);
-				return ExitCode.Success;
-			}
-
-			if (!options.DryRun && IsNonEmptyDirectory(output, fileSystem) && !ConfirmMatches(output, options.Confirm, fileSystem))
-			{
-				return RefuseNonEmptyOutput(stderr, jsonMode);
-			}
+			if (CheckDestination(options, stdout, stderr, jsonMode, fileSystem) is int checkedResult) return checkedResult;
 
 			StderrLogger logger = new(stderr);
 			Logger.Add(logger);
@@ -90,7 +50,7 @@ internal static class UnityProjectExport
 				FullConfiguration settings = new();
 				settings.LoadFromDefaultPath();
 				ExportHandler handler = new(settings);
-				GameData gameData = handler.LoadAndProcess(inputs, fileSystem);
+				GameData gameData = loaded ?? handler.LoadAndProcess(inputs, fileSystem);
 				try
 				{
 					if (!gameData.GameBundle.HasAnyAssetCollections())
@@ -102,7 +62,8 @@ internal static class UnityProjectExport
 					{
 						VirtualFileSystem preview = new();
 						const string previewRoot = "/preview";
-						ExportKind(options.Kind, handler, settings, gameData, previewRoot, preview);
+						ExportKind(options.Kind, handler, settings, gameData, previewRoot, cancellationToken.CanBeCanceled ? new CancellableFileSystem(preview, cancellationToken) : preview);
+						cancellationToken.ThrowIfCancellationRequested();
 						WriteResult(stdout, jsonMode, options.Kind, "dry_run", output, ListExportedFiles(preview, previewRoot));
 						return ExitCode.Success;
 					}
@@ -112,15 +73,24 @@ internal static class UnityProjectExport
 					{
 						return RefuseNonEmptyOutput(stderr, jsonMode);
 					}
-					ExportKind(options.Kind, handler, settings, gameData, output, fileSystem);
+					cancellationToken.ThrowIfCancellationRequested();
+					// An old success marker must not survive a failed or cancelled confirmed write.
+					string oldManifest = fileSystem.Path.Join(output, ManifestFileName);
+					if (fileSystem.File.Exists(oldManifest)) fileSystem.File.Delete(oldManifest);
+					ExportKind(options.Kind, handler, settings, gameData, output, cancellationToken.CanBeCanceled ? new CancellableFileSystem(fileSystem, cancellationToken) : fileSystem);
+					cancellationToken.ThrowIfCancellationRequested();
 					WriteManifest(output, inputs, options.Kind, fileSystem);
 				}
 				finally
 				{
-					gameData.AssemblyManager.Dispose();
+					if (loaded is null) gameData.AssemblyManager.Dispose();
 				}
 				WriteResult(stdout, jsonMode, options.Kind, "completed", output);
 				return ExitCode.Success;
+			}
+			catch (OperationCanceledException)
+			{
+				throw;
 			}
 			catch (Exception exception)
 			{
@@ -133,6 +103,53 @@ internal static class UnityProjectExport
 		}
 	}
 
+	internal static int? CheckInputs(IEnumerable<string> inputs, TextWriter stderr, bool jsonMode, FileSystem fileSystem)
+	{
+		foreach (string input in inputs)
+		{
+			try
+			{
+				if (fileSystem.Directory.Exists(input))
+				{
+					foreach (string file in fileSystem.Directory.EnumerateFiles(input, "*", SearchOption.AllDirectories))
+					{
+						using Stream stream = fileSystem.File.OpenRead(file);
+					}
+				}
+				else { using Stream stream = fileSystem.File.OpenRead(input); }
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				return CliOutput.WriteError(stderr, jsonMode, ExitCode.NotFound, "not_found", $"Input path '{input}' is missing or unreadable: {exception.Message}", "Pass an existing, readable --input path.");
+			}
+		}
+		return null;
+	}
+
+	internal static int? CheckDestination(UnityExportArguments options, TextWriter stdout, TextWriter stderr, bool jsonMode, FileSystem fileSystem)
+	{
+		string output = options.Output;
+		if (CheckProtectedDestination(output, stderr, jsonMode) is int protectedError) return protectedError;
+		if (fileSystem.File.Exists(output))
+			return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "output_is_file", "The output path is an existing file.", "Choose a new or empty --output directory.");
+		if (!options.DryRun && TryGetExistingExport(output, options.Inputs, options.Kind, fileSystem))
+		{
+			WriteResult(stdout, jsonMode, options.Kind, "completed", output, existing: true);
+			return ExitCode.Success;
+		}
+		if (!options.DryRun && IsNonEmptyDirectory(output, fileSystem) && !ConfirmMatches(output, options.Confirm, fileSystem))
+			return RefuseNonEmptyOutput(stderr, jsonMode);
+		return null;
+	}
+
+	internal static int? CheckProtectedDestination(string output, TextWriter stderr, bool jsonMode)
+	{
+		string name = Path.GetFileName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(output)));
+		return new[] { "Desktop", "Documents", "Downloads" }.Contains(name, StringComparer.OrdinalIgnoreCase)
+			? CliOutput.WriteError(stderr, jsonMode, ExitCode.Usage, "usage", "The output is a protected personal directory.", "Choose a different --output directory.")
+			: null;
+	}
+
 	private static bool ConfirmMatches(string output, string? confirm, FileSystem fileSystem)
 	{
 		if (string.IsNullOrEmpty(confirm))
@@ -140,7 +157,7 @@ internal static class UnityProjectExport
 			return false;
 		}
 
-		string name = fileSystem.Path.GetFileName(fileSystem.Path.GetFullPath(output));
+		string name = fileSystem.Path.GetFileName(Path.TrimEndingDirectorySeparator(fileSystem.Path.GetFullPath(output)));
 		return string.Equals(confirm, name, StringComparison.Ordinal);
 	}
 
