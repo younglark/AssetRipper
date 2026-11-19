@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<IsPackable>false</IsPackable>
+		<OutputPath>..\0Bins\Other\AssetRipper.CLI.Tests\$(Configuration)\</OutputPath>
+		<IntermediateOutputPath>..\0Bins\obj\AssetRipper.CLI.Tests\$(Configuration)\</IntermediateOutputPath>
+		<IsAotCompatible>false</IsAotCompatible>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="TUnit" Version="1.78.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\AssetRipper.CLI\AssetRipper.CLI.csproj" />
+	</ItemGroup>
+
+</Project>
