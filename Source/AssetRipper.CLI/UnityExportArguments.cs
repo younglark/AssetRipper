@@ -69,7 +69,7 @@ internal sealed class UnityExportArguments
 		}
 		if (result.Inputs.Count == 0 && !session)
 		{
-			throw new ArgumentException("Pass at least one --input <path>.");
+			throw new ArgumentException("Pass exactly one of --input <path> (repeatable) or --session <id>; they are mutually exclusive.");
 		}
 		return result;
 	}

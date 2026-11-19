@@ -95,7 +95,7 @@ internal class UsageTests
 	[Test]
 	public async Task KnownUnimplementedCommandDoesNotHangAndExitsAsARuntimeError()
 	{
-		CliResult result = Cli.Run(["session", "start", "--input", "./Game"]);
+		CliResult result = Cli.Run(["job", "status", "example-job"]);
 
 		await Assert.That(result.ExitCode).IsEqualTo(1);
 		await Assert.That(result.Stdout).IsEmpty();
@@ -168,10 +168,6 @@ internal class UsageTests
 
 	[Test]
 	[Arguments("export primary-content --session=id --output Out --dry-run --confirm Out --timeout 60 --no-wait --wait")]
-	[Arguments("list assets --input Game --session=id --limit 100 --cursor token --name *.png --type Texture2D")]
-	[Arguments("get asset ref --input Game --session=id --format json --output out.json --confirm=out.json")]
-	[Arguments("search Player --input Game --session=id --limit 100 --cursor token")]
-	[Arguments("session start --input Game --timeout 60 --no-wait --wait")]
 	[Arguments("job wait id --timeout 60")]
 	public async Task PlannedOptionsAreRecognizedWithoutImplementingDomainCommands(string commandLine)
 	{

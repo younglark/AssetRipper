@@ -49,7 +49,7 @@ Export loaded assets as a Unity project or as their primary decoded files.
 This build supports synchronous unity-project and primary-content with repeatable --input and required --output.
 --dry-run previews the files that would be written without changing the disk, including when the output directory is not empty.
 A non-empty output directory is refused unless it is an Existing export of the same inputs, or --confirm=<directory name> is passed. A second identical export reports existing: true and does not write again.
-Sessions, --timeout, and --no-wait are not implemented in this build.
+Export with --session, --timeout, and --no-wait is not implemented in this build.
 The remaining options below describe the planned CLI contract.
 
 OPTIONS
@@ -141,16 +141,26 @@ Usage: assetripper session start --input <path>... [options]
        assetripper session close <id>
 
 A Session is a loaded set of game files that later commands can reuse.
+start waits for ready or failed by default. --no-wait or --timeout returns the id
+and current status without stopping the load. status reports loading, ready, or failed.
+Inspect a ready Session with --session <id> instead of --input. Inspecting loading
+exits 8; inspecting failed exits 1. Use session status to wait, or start again after failure.
+Sessions are local only, hold data in memory, and end after 30 minutes idle or close.
+An ended Session (including after a process or machine restart) exits 5.
 
 OPTIONS
   --input <path>       Game file or directory to load (start only). Repeatable.
   --timeout <seconds>  Stop waiting for the load to finish after this many seconds
   --no-wait            Return the Session id without waiting for the load to finish
+  --wait               Wait for ready or failed (default); cannot be combined with --no-wait
   --json               Write result data as JSON even when stdout is a TTY
   --help               Show this help
 
 EXAMPLES
   assetripper session start --input ./Game
+  assetripper session start --input ./Game --no-wait
+  assetripper session start --input ./Game --timeout 10
+  assetripper list assets --session <id>
   assetripper session status <id>
   assetripper session close <id>
 

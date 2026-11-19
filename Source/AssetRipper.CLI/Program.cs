@@ -23,12 +23,15 @@ public static class Program
 
 	public static int Main(string[] args)
 	{
+		if (args.Length >= 2 && args[0] == "--session-host")
+		{
+			return SessionHost.Run(args[1], args[2..]);
+		}
 		return Run(args, Console.Out, Console.Error, !Console.IsOutputRedirected, static name => Environment.GetEnvironmentVariable(name));
 	}
 
 	public static int Run(string[] args, TextWriter stdout, TextWriter stderr, bool stdoutIsTty, Func<string, string?> getEnvironmentVariable, FileSystem? fileSystem = null)
 	{
-		_ = getEnvironmentVariable;
 
 		bool jsonMode = CliOutput.IsJsonMode(stdoutIsTty, HasFlag(args, "--json"));
 		List<string> positionals = GetPositionals(args);
@@ -84,6 +87,11 @@ public static class Program
 		if (command == "get" && positionals.Count > 1 && positionals[1] == "asset")
 		{
 			return GetAssetCommand.Run(args, stdout, stderr, jsonMode, fileSystem ?? LocalFileSystem.Instance);
+		}
+
+		if (command == "session")
+		{
+			return SessionCommand.Run(args, stdout, stderr, jsonMode, getEnvironmentVariable);
 		}
 
 		if (command is not null)

@@ -52,6 +52,9 @@ internal sealed class GetAssetPayload
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(SessionPayload))]
+[JsonSerializable(typeof(SessionRequest))]
+[JsonSerializable(typeof(SessionResponse))]
 [JsonSerializable(typeof(ErrorPayload))]
 [JsonSerializable(typeof(VersionPayload))]
 [JsonSerializable(typeof(ExportPayload))]

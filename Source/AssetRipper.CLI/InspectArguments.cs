@@ -6,7 +6,7 @@ internal sealed class InspectArguments
 	public string? Kind { get; private set; }
 	public string? Query { get; private set; }
 	public List<string> Inputs { get; } = [];
-	public bool Session { get; private set; }
+	public string? Session { get; private set; }
 	public int Limit { get; private set; } = 100;
 	public string? Cursor { get; private set; }
 	public string? Name { get; private set; }
@@ -24,7 +24,12 @@ internal sealed class InspectArguments
 					result.Inputs.Add(value!);
 					break;
 				case "--session":
-					result.Session = true;
+					if (result.Session is not null)
+					{
+						throw new ArgumentException("Pass --session only once.");
+					}
+
+					result.Session = value;
 					break;
 				case "--limit":
 					if (!int.TryParse(value, out int limit) || limit < 1)
@@ -93,15 +98,9 @@ internal sealed class InspectArguments
 			}
 		}
 
-		if (result.Session && result.Inputs.Count == 0)
+		if ((result.Session is null) == (result.Inputs.Count == 0))
 		{
-			// Sessions are implemented in a later ticket.
-			return result;
-		}
-
-		if (result.Inputs.Count == 0)
-		{
-			throw new ArgumentException("Pass at least one --input <path>.");
+			throw new ArgumentException("Pass exactly one of --input <path> (repeatable) or --session <id>; they are mutually exclusive.");
 		}
 
 		return result;

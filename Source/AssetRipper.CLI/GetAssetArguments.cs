@@ -17,7 +17,7 @@ internal sealed class GetAssetArguments
 
 	public string? AssetReference { get; private set; }
 	public List<string> Inputs { get; } = [];
-	public bool Session { get; private set; }
+	public string? Session { get; private set; }
 	public string Format { get; private set; } = "json";
 	public string? Output { get; private set; }
 	public string? Confirm { get; private set; }
@@ -34,7 +34,12 @@ internal sealed class GetAssetArguments
 					result.Inputs.Add(value!);
 					break;
 				case "--session":
-					result.Session = true;
+					if (result.Session is not null)
+					{
+						throw new ArgumentException("Pass --session only once.");
+					}
+
+					result.Session = value;
 					break;
 				case "--format":
 					if (string.IsNullOrWhiteSpace(value))
@@ -80,14 +85,9 @@ internal sealed class GetAssetArguments
 		}
 
 		result.AssetReference = positionals[2];
-		if (result.Session && result.Inputs.Count == 0)
+		if ((result.Session is null) == (result.Inputs.Count == 0))
 		{
-			return result;
-		}
-
-		if (result.Inputs.Count == 0)
-		{
-			throw new ArgumentException("Pass at least one --input <path>.");
+			throw new ArgumentException("Pass exactly one of --input <path> (repeatable) or --session <id>; they are mutually exclusive.");
 		}
 
 		return result;

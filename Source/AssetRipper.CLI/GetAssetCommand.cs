@@ -16,6 +16,11 @@ internal static class GetAssetCommand
 		try
 		{
 			GetAssetArguments options = GetAssetArguments.Parse(args);
+			if (options.Session is not null)
+			{
+				bool binaryOutput = options.Output is null && options.Format is not ("text" or "json" or "yaml");
+				return SessionCommand.Query(options.Session, args, stdout, stderr, jsonMode, binaryOutput);
+			}
 			return Execute(options, stdout, stderr, jsonMode, fileSystem);
 		}
 		catch (ArgumentException exception)
@@ -33,11 +38,6 @@ internal static class GetAssetCommand
 
 	private static int Execute(GetAssetArguments options, TextWriter stdout, TextWriter stderr, bool jsonMode, FileSystem fileSystem)
 	{
-		if (options.Session)
-		{
-			return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "not_implemented", "Sessions are not implemented in this build.", "Use --input and omit --session for a one-shot command.");
-		}
-
 		if (!string.IsNullOrEmpty(options.Output) && fileSystem.File.Exists(options.Output) && !ConfirmMatches(options.Output, options.Confirm, fileSystem))
 		{
 			return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "output_exists", "The output file already exists.", "Pass --confirm=<file name> to overwrite it, or choose a different --output path.");
@@ -77,24 +77,7 @@ internal static class GetAssetCommand
 				GameData gameData = handler.LoadAndProcess(options.Inputs, fileSystem);
 				try
 				{
-					IUnityObjectBase? asset = FindAsset(gameData, options.AssetReference!);
-					if (asset is null)
-					{
-						return CliOutput.WriteError(stderr, jsonMode, ExitCode.NotFound, "not_found", $"Asset Reference '{options.AssetReference}' was not found.", "Run assetripper list assets to get a current Asset Reference.");
-					}
-
-					IReadOnlyList<string> supported = GetAssetFormat.SupportedFormats(asset);
-					if (!supported.Contains(options.Format))
-					{
-						return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "unsupported_format", $"The '{options.Format}' format is not supported for this asset.", $"This asset supports: {string.Join(", ", supported)}.");
-					}
-
-					if (!GetAssetFormat.TryEncode(asset, options.Format, gameData, out byte[]? payload))
-					{
-						return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "export_failed", $"The '{options.Format}' payload could not be produced for this asset.", $"This asset supports: {string.Join(", ", supported)}.");
-					}
-
-					return WritePayload(options, payload, stdout, jsonMode, fileSystem);
+					return ExecuteLoaded(options, gameData, stdout, stderr, jsonMode, fileSystem);
 				}
 				finally
 				{
@@ -110,6 +93,32 @@ internal static class GetAssetCommand
 				Logger.Remove(logger);
 			}
 		}
+	}
+
+	internal static int ExecuteLoaded(GetAssetArguments options, GameData gameData, TextWriter stdout, TextWriter stderr, bool jsonMode, FileSystem fileSystem)
+	{
+		if (!string.IsNullOrEmpty(options.Output) && fileSystem.File.Exists(options.Output) && !ConfirmMatches(options.Output, options.Confirm, fileSystem))
+		{
+			return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "output_exists", "The output file already exists.", "Pass --confirm=<file name> to overwrite it, or choose a different --output path.");
+		}
+		IUnityObjectBase? asset = FindAsset(gameData, options.AssetReference!);
+		if (asset is null)
+		{
+			return CliOutput.WriteError(stderr, jsonMode, ExitCode.NotFound, "not_found", $"Asset Reference '{options.AssetReference}' was not found.", "Run assetripper list assets to get a current Asset Reference.");
+		}
+
+		IReadOnlyList<string> supported = GetAssetFormat.SupportedFormats(asset);
+		if (!supported.Contains(options.Format))
+		{
+			return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "unsupported_format", $"The '{options.Format}' format is not supported for this asset.", $"This asset supports: {string.Join(", ", supported)}.");
+		}
+
+		if (!GetAssetFormat.TryEncode(asset, options.Format, gameData, out byte[]? payload))
+		{
+			return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "export_failed", $"The '{options.Format}' payload could not be produced for this asset.", $"This asset supports: {string.Join(", ", supported)}.");
+		}
+
+		return WritePayload(options, payload, stdout, jsonMode, fileSystem);
 	}
 
 	private static IUnityObjectBase? FindAsset(GameData gameData, string assetReference)

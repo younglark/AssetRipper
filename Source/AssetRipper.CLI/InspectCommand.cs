@@ -17,6 +17,11 @@ internal static class InspectCommand
 		try
 		{
 			InspectArguments options = InspectArguments.Parse(args);
+			if (options.Session is not null)
+			{
+				return SessionCommand.Query(options.Session, args, stdout, stderr, jsonMode);
+			}
+
 			return Execute(options, stdout, stderr, jsonMode, fileSystem);
 		}
 		catch (ArgumentException exception)
@@ -31,11 +36,6 @@ internal static class InspectCommand
 
 	private static int Execute(InspectArguments options, TextWriter stdout, TextWriter stderr, bool jsonMode, FileSystem fileSystem)
 	{
-		if (options.Session)
-		{
-			return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "not_implemented", "Sessions are not implemented in this build.", "Use --input and omit --session for a one-shot command.");
-		}
-
 		// Validate the cursor before loading so a bad token stays a usage error.
 		_ = DecodeCursor(options.Cursor);
 
@@ -73,10 +73,7 @@ internal static class InspectCommand
 				GameData gameData = handler.LoadAndProcess(options.Inputs, fileSystem);
 				try
 				{
-					List<InspectItem> items = CollectItems(gameData.GameBundle, options);
-					(List<InspectItem> page, bool truncated, string? next) = Paginate(items, options);
-					WriteResult(stdout, jsonMode, page, truncated, next);
-					return ExitCode.Success;
+					return ExecuteLoaded(options, gameData, stdout, jsonMode);
 				}
 				finally
 				{
@@ -92,6 +89,14 @@ internal static class InspectCommand
 				Logger.Remove(logger);
 			}
 		}
+	}
+
+	internal static int ExecuteLoaded(InspectArguments options, GameData gameData, TextWriter stdout, bool jsonMode)
+	{
+		List<InspectItem> items = CollectItems(gameData.GameBundle, options);
+		(List<InspectItem> page, bool truncated, string? next) = Paginate(items, options);
+		WriteResult(stdout, jsonMode, page, truncated, next);
+		return ExitCode.Success;
 	}
 
 	private static List<InspectItem> CollectItems(GameBundle gameBundle, InspectArguments options)
