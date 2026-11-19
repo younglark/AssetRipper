@@ -11,9 +11,7 @@ namespace AssetRipper.CLI;
 
 internal static class UnityProjectExport
 {
-	private static readonly object ExportLock = new();
-
-	public static int Run(string[] args, TextWriter stdout, TextWriter stderr, bool jsonMode, FileSystem fileSystem)
+		public static int Run(string[] args, TextWriter stdout, TextWriter stderr, bool jsonMode, FileSystem fileSystem)
 	{
 		try
 		{
@@ -72,7 +70,7 @@ internal static class UnityProjectExport
 			return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "output_is_file", "The output path is an existing file.", "Choose a new or empty --output directory.");
 		}
 
-		lock (ExportLock)
+		lock (CliSync.LoadLock)
 		{
 			if (!options.DryRun && TryGetExistingExport(output, inputs, options.Kind, fileSystem))
 			{

@@ -12,8 +12,6 @@ namespace AssetRipper.CLI;
 
 internal static class InspectCommand
 {
-	private static readonly object LoadLock = new();
-
 	public static int Run(string[] args, TextWriter stdout, TextWriter stderr, bool jsonMode, FileSystem fileSystem)
 	{
 		try
@@ -63,7 +61,7 @@ internal static class InspectCommand
 			}
 		}
 
-		lock (LoadLock)
+		lock (CliSync.LoadLock)
 		{
 			StderrLogger logger = new(stderr);
 			Logger.Add(logger);
