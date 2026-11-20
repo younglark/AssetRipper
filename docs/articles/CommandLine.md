@@ -404,7 +404,7 @@ assetripper session close <id>
 3. Export with `--session <id>`. If the export might exceed your host timeout, use `--timeout` or `--no-wait` and then `job wait`.
 4. Close the Session when you are done.
 
-One-shot commands (`--input` without a Session) load, perform one action, and exit. If a one-shot export returns a Job because of `--timeout` or `--no-wait`, the Job remains queryable until it finishes, fails, or is cancelled.
+One-shot commands (`--input` without a Session) load, perform one action, and exit. If a one-shot export returns a Job because of `--timeout` or `--no-wait`, the Job remains queryable while its owner process is alive, including 30 minutes idle after completion in the current implementation. That owner is not a reusable Session: `session status` and inspect commands that use the owner id exit `5` with `not_found` (the loaded data belongs to the Job and is not kept as Session state). `session close` on the owner still ends the process. A Session started with `session start` that actually failed to load still reports `failed` on `session status` (exit `0`).
 
 On a single Session, only one mutating operation may run at a time. A conflicting write exits `8` with a hint naming the Job or operation to wait for. After the Session is `ready`, `list`, `search`, and `get` (including `get --output`) may run during an export Job. Only a second mutating export, or `session close` while a Job is running, is a conflict.
 
@@ -446,6 +446,7 @@ This documentation follows the accepted spec. Where the current command differs 
 
 - `export` accepts `--wait` as the default (and rejects `--wait` together with `--no-wait`), but `export --help` does not currently list `--wait`. `session --help` does list it.
 - Successful `session close` currently reports an additive status value `closed`, which is not one of the frozen load-status values (`loading`, `ready`, `failed`).
+- A one-shot export Job's owner process is not a reusable Session. After the one-shot export is accepted, `session status` and `--session` inspect commands on that owner id exit `5` with `not_found` rather than reporting the frozen `failed` load status. `job status` / `job wait` remain queryable, and `session close` still ends the owner.
 - Error objects currently include an additive `message` field in addition to the stable `code` and `hint`.
 - The current implementation uses the additive property `id` for both Session and Job identifiers (a 32-character lowercase hex Session id, and a 64-character lowercase hex Job id). The stable contract requires that a Session identifier and a Job identifier be returned and reusable; it does not freeze those property names or formats.
 - `--confirm` compares the resolved directory or file name with ordinal, case-sensitive equality. Protected personal folder names (`Desktop`, `Documents`, `Downloads`) are compared case-insensitively, as the spec requires.

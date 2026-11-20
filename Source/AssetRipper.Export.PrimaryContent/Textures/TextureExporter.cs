@@ -1,4 +1,5 @@
 ﻿using AssetRipper.Assets;
+using AssetRipper.Assets.Collections;
 using AssetRipper.Export.Configuration;
 using AssetRipper.Export.Modules.Textures;
 using AssetRipper.SourceGenerated.Classes.ClassID_189;
@@ -21,6 +22,14 @@ public sealed class TextureExporter : IContentExtractor
 	{
 		if (asset is IImageTexture texture && texture.CheckAssetIntegrity())
 		{
+			// Injected engine placeholders have a name and type but no pixels.
+			// Skip them silently; a real engine file or game Texture2D with empty data still fails export.
+			if (texture.Collection is InjectedEngineAssetCollection && texture.GetImageData().Length == 0)
+			{
+				exportCollection = EmptyExportCollection.Instance;
+				return true;
+			}
+
 			exportCollection = new ImageExportCollection(this, texture);
 			return true;
 		}

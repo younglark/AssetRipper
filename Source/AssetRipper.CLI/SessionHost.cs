@@ -60,6 +60,7 @@ internal static class SessionHost
 		int replyDelay = int.TryParse(Environment.GetEnvironmentVariable("ASSETRIPPER_TEST_JOB_REPLY_DELAY_MS"), out int replyDelayMs) ? replyDelayMs : 0;
 		Dictionary<string, ExportJob> jobs = [];
 		ExportJob? active = null;
+		bool sessionDataAvailable = true;
 		string socketPath = SessionCommand.SocketPath(id);
 		using Socket listener = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
 		listener.Bind(new UnixDomainSocketEndPoint(socketPath));
@@ -115,6 +116,8 @@ internal static class SessionHost
 					}
 					else if (active?.IsRunning == true && request.Command == "close")
 						response = Busy(request, active);
+					else if (!sessionDataAvailable && request.Command is not "close")
+						response = Error(request, ExitCode.NotFound, "not_found", "The Session was not found or has ended.", "Run assetripper session start to load the inputs again.");
 					else if (request.Command is "export" or "export-one-shot")
 					{
 						if (active?.IsRunning == true) response = Busy(request, active);
@@ -135,8 +138,9 @@ internal static class SessionHost
 								if (request.Command == "export-one-shot")
 								{
 									_ = ReleaseOneShotData(active.Completion, loading);
-									// The Job now owns the load; keep only the small queryable results here.
+									// The Job now owns the load; this owner is not a reusable Session.
 									loading = Task.FromCanceled<GameData>(new CancellationToken(true));
+									sessionDataAvailable = false;
 								}
 								response = active.Started;
 							}

@@ -16,34 +16,22 @@ internal sealed partial record class GameInitializer
 {
 	private static class EngineResourceInjector
 	{
-		private sealed class InjectedEngineCollection : VirtualAssetCollection
-		{
-			public InjectedEngineCollection(string name, UnityVersion version, InjectedEngineBundle bundle) : base(bundle)
-			{
-				Name = name;
-				Version = version;
-				OriginalVersion = version;
-				Platform = BuildTarget.NoTarget;
-				Flags = TransferInstructionFlags.SerializeGameRelease | TransferInstructionFlags.IsBuiltinResourcesFile;
-			}
-
-			public void AddAssets(Dictionary<long, Object> assets)
-			{
-				foreach ((long pathID, Object @object) in assets)
-				{
-					IUnityObjectBase asset = AssetFactory.Create(new AssetInfo(this, pathID, @object.TypeID));
-					if (asset is INamed named && @object is NamedObject namedObject)
-					{
-						named.Name = namedObject.Name;
-					}
-					AddAsset(asset);
-				}
-			}
-		}
-
-		private sealed class InjectedEngineBundle : VirtualBundle<InjectedEngineCollection>
+		private sealed class InjectedEngineBundle : VirtualBundle<InjectedEngineAssetCollection>
 		{
 			public override string Name => "Generated Engine Collections";
+		}
+
+		private static void AddAssets(InjectedEngineAssetCollection collection, Dictionary<long, Object> assets)
+		{
+			foreach ((long pathID, Object @object) in assets)
+			{
+				IUnityObjectBase asset = AssetFactory.Create(new AssetInfo(collection, pathID, @object.TypeID));
+				if (asset is INamed named && @object is NamedObject namedObject)
+				{
+					named.Name = namedObject.Name;
+				}
+				collection.Add(asset);
+			}
 		}
 
 		public static void InjectEngineFilesIfNecessary(GameBundle gameBundle, UnityVersion targetVersion)
@@ -71,13 +59,13 @@ internal sealed partial record class GameInitializer
 			EngineResourceData data = GetData(targetVersion);
 			if (injectDefaultResources)
 			{
-				InjectedEngineCollection collection = new(SpecialFileNames.DefaultResourceName1, targetVersion, bundle);
-				collection.AddAssets(data.DefaultResources);
+				InjectedEngineAssetCollection collection = new(SpecialFileNames.DefaultResourceName1, targetVersion, bundle);
+				AddAssets(collection, data.DefaultResources);
 			}
 			if (injectExtraResources)
 			{
-				InjectedEngineCollection collection = new(SpecialFileNames.BuiltinExtraName2, targetVersion, bundle);
-				collection.AddAssets(data.ExtraResources);
+				InjectedEngineAssetCollection collection = new(SpecialFileNames.BuiltinExtraName2, targetVersion, bundle);
+				AddAssets(collection, data.ExtraResources);
 			}
 		}
 

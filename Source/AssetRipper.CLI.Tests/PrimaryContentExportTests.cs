@@ -181,6 +181,52 @@ internal class PrimaryContentExportTests
 	}
 
 	[Test]
+	public async Task IsolatedBundleDoesNotWarnWhenInjectedEngineTexturesHaveNoPixels()
+	{
+		VirtualFileSystem fileSystem = CreateGame();
+		CliResult result = Cli.Run(["export", "primary-content", "--input", "/game", "--output", "/output"], fileSystem: fileSystem);
+		await Assert.That(result.ExitCode).IsEqualTo(0);
+		await Assert.That(fileSystem.File.ReadAllText(FixtureOutput)).IsEqualTo(FixtureText);
+		await Assert.That(result.Stderr).DoesNotContain("Failed to export");
+		// Injected placeholders such as Soft must not be written as empty images.
+		await Assert.That(fileSystem.Directory.GetFiles("/output", "*", SearchOption.AllDirectories)
+			.Any(path => Path.GetFileName(path) == "Soft.png")).IsFalse();
+	}
+
+	[Test]
+	public async Task RealUserTexturesStillExportAndEmptyNonInjectedTexturesStillWarn()
+	{
+		VirtualFileSystem fileSystem = CreateGameWithUserTextures();
+		CliResult result = Cli.Run(["export", "primary-content", "--input", "/game", "--output", "/output"], fileSystem: fileSystem);
+		await Assert.That(result.ExitCode).IsEqualTo(0);
+		await Assert.That(fileSystem.File.ReadAllText(FixtureOutput)).IsEqualTo(FixtureText);
+		await Assert.That(result.Stderr).DoesNotContain("Failed to export 'Soft'");
+		await Assert.That(result.Stderr).DoesNotContain("Failed to export 'RealTex'");
+		await Assert.That(result.Stderr).Contains("Failed to export 'EmptyUserTex'");
+		await Assert.That(fileSystem.Directory.GetFiles("/output", "*", SearchOption.AllDirectories)
+			.Any(path => Path.GetFileName(path) == "EmptyUserTex.png")).IsFalse();
+		string[] real = fileSystem.Directory.GetFiles("/output", "*", SearchOption.AllDirectories)
+			.Where(path => Path.GetFileNameWithoutExtension(path) == "RealTex").ToArray();
+		await Assert.That(real.Length).IsGreaterThan(0);
+		await Assert.That(fileSystem.File.ReadAllBytes(real[0]).Length).IsGreaterThan(0);
+	}
+
+	[Test]
+	public async Task RealUnityDefaultResourcesTextureIsExportedAndNotTreatedAsPlaceholder()
+	{
+		VirtualFileSystem fileSystem = CreateGame();
+		AddUnityDefaultResourcesWithSoft(fileSystem);
+		CliResult result = Cli.Run(["export", "primary-content", "--input", "/game", "--output", "/output"], fileSystem: fileSystem);
+		await Assert.That(result.ExitCode).IsEqualTo(0);
+		await Assert.That(fileSystem.File.ReadAllText(FixtureOutput)).IsEqualTo(FixtureText);
+		await Assert.That(result.Stderr).DoesNotContain("Failed to export 'Soft'");
+		string[] soft = fileSystem.Directory.GetFiles("/output", "*", SearchOption.AllDirectories)
+			.Where(path => Path.GetFileNameWithoutExtension(path) == "Soft").ToArray();
+		await Assert.That(soft.Length).IsGreaterThan(0);
+		await Assert.That(fileSystem.File.ReadAllBytes(soft[0]).Length).IsGreaterThan(0);
+	}
+
+	[Test]
 	public async Task SubcommandHelpDocumentsPrimaryContentExport()
 	{
 		CliResult result = Cli.Run(["export", "primary-content", "--help"]);
@@ -219,6 +265,62 @@ internal class PrimaryContentExportTests
 		builder.Build().Write(stream);
 		stream.Position = 0;
 		return fileSystem;
+	}
+
+
+	// Synthetic Texture2D payloads written with AssetRipper typetree WriteRelease for 2022.3.0f1
+	// (2x2 RGBA32 pixels, and 8x8 RGBA32 with no image data). Not game assets.
+	private static readonly byte[] RealTexData = Convert.FromHexString("070000005265616C54657800000000000000000002000000020000000000000000000000040000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000FF0000FFFF0000FFFF0000FFFF0000FF00000000000000000000000000000000");
+	private static readonly byte[] EmptyUserTexData = Convert.FromHexString("0C000000456D7074795573657254657800000000000000000800000008000000000000000000000004000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+
+	private static VirtualFileSystem CreateGameWithUserTextures()
+	{
+		VirtualFileSystem fileSystem = new();
+		fileSystem.Directory.Create("/game");
+		SerializedFileBuilder builder = new()
+		{
+			Generation = FormatVersion.LargeFilesSupport,
+			Version = AssetRipper.Primitives.UnityVersion.Parse("2022.3.0f1"),
+			EndianType = EndianType.LittleEndian,
+			Platform = BuildTarget.StandaloneWin64Player,
+		};
+		SerializedType textType = new() { TypeID = 49, ScriptTypeIndex = -1 };
+		SerializedType textureType = new() { TypeID = 28, ScriptTypeIndex = -1 };
+		builder.Types.Add(textType);
+		builder.Types.Add(textureType);
+		using MemoryStream objectData = new();
+		using (BinaryWriter writer = new(objectData, Encoding.UTF8, leaveOpen: true))
+		{
+			WriteAligned(writer, "Greeting");
+			WriteAligned(writer, FixtureText);
+		}
+		builder.Objects.Add(new ObjectInfo(textType) { FileID = 1, SerializedTypeIndex = 0, ObjectData = objectData.ToArray() });
+		builder.Objects.Add(new ObjectInfo(textureType) { FileID = 2, SerializedTypeIndex = 1, ObjectData = RealTexData });
+		builder.Objects.Add(new ObjectInfo(textureType) { FileID = 3, SerializedTypeIndex = 1, ObjectData = EmptyUserTexData });
+		using Stream stream = fileSystem.File.Create("/game/test.assets");
+		builder.Build().Write(stream);
+		stream.Position = 0;
+		return fileSystem;
+	}
+
+
+	private static readonly byte[] RealSoftData = Convert.FromHexString("04000000536F6674000000000000000002000000020000000000000000000000040000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000FF0000FFFF0000FFFF0000FFFF0000FF00000000000000000000000000000000");
+
+	private static void AddUnityDefaultResourcesWithSoft(VirtualFileSystem fileSystem)
+	{
+		SerializedFileBuilder builder = new()
+		{
+			Generation = FormatVersion.LargeFilesSupport,
+			Version = AssetRipper.Primitives.UnityVersion.Parse("2022.3.0f1"),
+			EndianType = EndianType.LittleEndian,
+			Platform = BuildTarget.StandaloneWin64Player,
+		};
+		SerializedType textureType = new() { TypeID = 28, ScriptTypeIndex = -1 };
+		builder.Types.Add(textureType);
+		builder.Objects.Add(new ObjectInfo(textureType) { FileID = 10001, SerializedTypeIndex = 0, ObjectData = RealSoftData });
+		using Stream stream = fileSystem.File.Create("/game/unity default resources");
+		builder.Build().Write(stream);
+		stream.Position = 0;
 	}
 
 	private static void Rewind(VirtualFileSystem fileSystem, string path)

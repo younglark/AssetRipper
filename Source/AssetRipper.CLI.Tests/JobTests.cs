@@ -189,6 +189,55 @@ internal class JobTests
 	}
 
 	[Test]
+	public async Task CompletedOneShotKeepsJobQueryableWithoutPretendingTheOwnerFailedToLoad()
+	{
+		string input = SessionTests.CreateGame();
+		string output = input + "-oneshot-owner";
+		string? owner = null;
+		try
+		{
+			CliResult exported = Cli.Run(["export", "primary-content", "--input", input, "--output", output, "--timeout", "30"]);
+			await Assert.That(exported.ExitCode).IsEqualTo(0);
+			await Assert.That(Property(exported, "status")).IsEqualTo("completed");
+			string job = Property(exported, "id");
+			owner = job[..32];
+
+			CliResult jobStatus = Cli.Run(["job", "status", job]);
+			await Assert.That(jobStatus.ExitCode).IsEqualTo(0);
+			await Assert.That(Property(jobStatus, "status")).IsEqualTo("completed");
+
+			CliResult sessionStatus = Cli.Run(["session", "status", owner]);
+			await Assert.That(sessionStatus.ExitCode).IsEqualTo(5);
+			await Assert.That(sessionStatus.Stdout).IsEmpty();
+			using JsonDocument error = JsonDocument.Parse(sessionStatus.Stderr);
+			await Assert.That(error.RootElement.GetProperty("code").GetString()).IsEqualTo("not_found");
+			await Assert.That(sessionStatus.Stderr).DoesNotContain("readable inputs");
+
+			CliResult inspect = Cli.Run(["list", "assets", "--session", owner]);
+			await Assert.That(inspect.ExitCode).IsEqualTo(5);
+			using JsonDocument inspectError = JsonDocument.Parse(inspect.Stderr);
+			await Assert.That(inspectError.RootElement.GetProperty("code").GetString()).IsEqualTo("not_found");
+
+			CliResult close = Cli.Run(["session", "close", owner]);
+			await Assert.That(close.ExitCode).IsEqualTo(0);
+			await Assert.That(Property(close, "status")).IsEqualTo("closed");
+			owner = null;
+			await Assert.That(Cli.Run(["session", "status", job[..32]]).ExitCode).IsEqualTo(5);
+			await Assert.That(Cli.Run(["job", "status", job]).ExitCode).IsEqualTo(5);
+		}
+		finally
+		{
+			if (owner is not null)
+			{
+				Cli.Run(["session", "close", owner]);
+			}
+
+			Directory.Delete(input, true);
+			if (Directory.Exists(output)) Directory.Delete(output, true);
+		}
+	}
+
+	[Test]
 	[Arguments("unity-project")]
 	[Arguments("primary-content")]
 	public async Task OneShotJobOutlivesActualCallerProcess(string kind)
