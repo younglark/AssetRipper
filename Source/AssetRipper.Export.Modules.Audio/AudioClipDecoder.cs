@@ -40,8 +40,15 @@ public static class AudioClipDecoder
 				if (FsbLoader.TryLoadFsbFromByteArray(rawData, out FmodSoundBank? fsbData))
 				{
 					audioType = fsbData!.Header.AudioType;
-					if (audioType.IsSupported() && fsbData.Samples.Single().RebuildAsStandardFileFormat(out decodedData, out fileExtension))
+					if (audioType.IsSupported() && fsbData.Samples.Single().RebuildAsStandardFileFormat(out decodedData, out fileExtension) && decodedData is not null && fileExtension is not null)
 					{
+						// Fmod5Sharp 3.1.0 IMA rebuild returns a new WaveFileWriter buffer whose
+						// RIFF/data sizes are still zero. Correct only that new buffer; never the source FSB.
+						if (audioType == FmodAudioType.IMAADPCM)
+						{
+							WaveFileChunkSizeCorrector.TryFillZeroChunkSizes(decodedData);
+						}
+
 						message = null;
 						return true;
 					}
