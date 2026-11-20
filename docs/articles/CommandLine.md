@@ -126,7 +126,7 @@ Stable fields when a page is truncated: `truncated`, `next`, and `hint`. The `it
     {
       "name": "Greeting",
       "type": "TextAsset",
-      "ref": "cab-example:1"
+      "ref": "c0:1"
     }
   ],
   "truncated": true,
@@ -135,7 +135,7 @@ Stable fields when a page is truncated: `truncated`, `next`, and `hint`. The `it
 }
 ```
 
-The `ref` value is the Asset Reference. Pass that exact value to `get asset`. An Asset Reference is stable for the life of a Session, and for a one-shot command it is stable for the life of that process. When the result is not truncated, the current implementation omits `truncated`, `next`, and `hint`.
+The `ref` value is the Asset Reference. Treat it as opaque: the current `c0:1` form identifies a collection instance and an asset within it, not a collection filename; collections with identical filenames remain distinct. Pass that exact value to `get asset`. An Asset Reference is stable for the life of a Session, and for a one-shot command it is stable for the life of that process. When the result is not truncated, the current implementation omits `truncated`, `next`, and `hint`.
 
 ### Duplicate export (stdout)
 
@@ -278,6 +278,8 @@ assetripper get asset <ref> --session <id> --output ./asset.png --format image
 
 Retrieve an asset by the Asset Reference returned by `list assets` (or by `search`, which returns the same kind of identifier). A missing Asset Reference exits `5`.
 
+For `--format json`, non-finite numbers are encoded as the JSON strings `"Infinity"`, `"-Infinity"`, and `"NaN"`. Finite numbers remain JSON numbers; asset string values are unchanged.
+
 | Option | Description |
 | --- | --- |
 | `--input <path>` | Game file or directory to load. Repeatable. Mutually exclusive with `--session`. |
@@ -340,7 +342,7 @@ A Session is a loaded set of game files that later commands can reuse without lo
 | `--json` | Write result data as JSON even when stdout is a TTY |
 | `--help` | Show this help |
 
-`--timeout` and `--no-wait` apply to `session start` only.
+`--timeout` and `--no-wait` apply to `session start` only. A missing or unreadable explicit input makes a waiting start exit `5` with error code `not_found`, while still printing the failed Session identifier. If a deferred start returned while loading, later `session status` remains a successful query (exit `0`) reporting `failed`; inspecting that failed Session still exits `1`.
 
 Inspect commands (`list`, `get`, `search`) on a Session that is still `loading` exit `8` with a hint to run `session status`. On a Session that is already `failed`, they exit `1` with a hint to run `session start` again. After the Session is `ready`, `list`, `get`, and `search` may run while an export Job is in progress, including `get --output`.
 
@@ -365,6 +367,8 @@ A Job is a long-running export that can be queried until it finishes. Job identi
 | `--help` | Show this help |
 
 `job wait` waits for completion by default. `job cancel` stops export I/O cooperatively and leaves any partially written output in place. That directory is not an Existing export. A later export to the same non-empty directory follows the usual confirm rules.
+
+The `job wait --timeout` deadline covers connecting to the owner and reading its reply. If the reply misses the deadline, the result still includes the Job identifier, `status: running`, and a hint to wait again; additive output details may be absent until a reply is available.
 
 The current implementation also reports Job `status` values `completed`, `dry_run`, `failed`, and `cancelled` (as listed in `job --help`). Those values are additive. The stable deferred-export signal is `status` with the value `running`. Jobs remain queryable while their owner process is alive, including 30 minutes idle after completion in the current implementation.
 

@@ -6,6 +6,61 @@ namespace AssetRipper.CLI.Tests;
 internal class JobTests
 {
 	[Test]
+	[Arguments("0")]
+	[Arguments("0.1")]
+	public async Task UnknownOwnerRemainsNotFoundWithABoundedWait(string seconds)
+	{
+		string job = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+		CliResult result = Cli.Run(["job", "wait", job, "--timeout", seconds]);
+		await Assert.That(result.ExitCode).IsEqualTo(5);
+		await Assert.That(result.Stdout).IsEmpty();
+		using JsonDocument error = JsonDocument.Parse(result.Stderr);
+		await Assert.That(error.RootElement.GetProperty("code").GetString()).IsEqualTo("not_found");
+	}
+
+	[Test]
+	public async Task WaitTimeoutBoundsAStalledOwnerReplyAndTheOwnerSurvivesDisconnect()
+	{
+		string input = SessionTests.CreateGame();
+		string output = input + "-stalled-reply";
+		string session = Property(Cli.Run(["session", "start", "--input", input], environment: new Dictionary<string, string?>
+		{
+			["ASSETRIPPER_TEST_EXPORT_DELAY_MS"] = "60000",
+			["ASSETRIPPER_TEST_JOB_REPLY_DELAY_MS"] = "2000",
+		}), "id");
+		string? job = null;
+		Task<CliResult>? waiting = null;
+		try
+		{
+			job = Property(Cli.Run(["export", "primary-content", "--session", session, "--output", output, "--no-wait"]), "id");
+			waiting = Task.Run(() => Cli.Run(["job", "wait", job, "--timeout", "0.1"]));
+			CliResult result = await waiting.WaitAsync(TimeSpan.FromSeconds(1));
+			await Assert.That(result.ExitCode).IsEqualTo(0);
+			await Assert.That(Property(result, "status")).IsEqualTo("running");
+			await Assert.That(Property(result, "id")).IsEqualTo(job);
+			await Assert.That(Property(result, "hint")).Contains("job wait " + job);
+			// Let the late reply encounter the disconnected caller, then verify the same owner still serves commands.
+			await Task.Delay(2200);
+			await Assert.That(Property(Cli.Run(["job", "status", job]), "status")).IsEqualTo("running");
+			await Assert.That(Cli.Run(["session", "status", session]).ExitCode).IsEqualTo(0);
+		}
+		finally
+		{
+			try
+			{
+				if (waiting is not null) await waiting.WaitAsync(TimeSpan.FromSeconds(10));
+			}
+			finally
+			{
+				if (job is not null) Cli.Run(["job", "cancel", job]);
+				Cli.Run(["session", "close", session]);
+				Directory.Delete(input, true);
+				if (Directory.Exists(output)) Directory.Delete(output, true);
+			}
+		}
+	}
+
+	[Test]
 	[Arguments("unity-project")]
 	[Arguments("primary-content")]
 	public async Task ReadySessionExportsAndRecognizesExisting(string kind)

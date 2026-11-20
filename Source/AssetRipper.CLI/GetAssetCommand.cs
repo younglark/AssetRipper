@@ -123,15 +123,7 @@ internal static class GetAssetCommand
 
 	private static IUnityObjectBase? FindAsset(GameData gameData, string assetReference)
 	{
-		foreach (IUnityObjectBase asset in gameData.GameBundle.FetchAssets())
-		{
-			if (string.Equals($"{asset.Collection.Name}:{asset.PathID}", assetReference, StringComparison.Ordinal))
-			{
-				return asset;
-			}
-		}
-
-		return null;
+		return AssetReferences.For(gameData.GameBundle).Find(assetReference);
 	}
 
 	private static bool ConfirmMatches(string output, string? confirm, FileSystem fileSystem)

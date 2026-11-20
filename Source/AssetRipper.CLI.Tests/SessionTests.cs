@@ -191,16 +191,21 @@ internal class SessionTests
 	}
 
 	[Test]
-	public async Task FailedStartRetainsIdAndInspectsExplainHowToStartAgain()
+	public async Task MissingInputStartReturnsNotFoundRetainsIdAndFailedInspectsExplainHowToStartAgain()
 	{
 		string input = Path.Combine(Path.GetTempPath(), "missing-session-input-" + Guid.NewGuid().ToString("N"));
 		CliResult start = Cli.Run(["session", "start", "--input", input]);
 		string id = ReadId(start);
 		try
 		{
-			await Assert.That(start.ExitCode).IsEqualTo(1);
+			await Assert.That(start.ExitCode).IsEqualTo(5);
+			using JsonDocument startError = JsonDocument.Parse(start.Stderr);
+			await Assert.That(startError.RootElement.GetProperty("code").GetString()).IsEqualTo("not_found");
+			await Assert.That(startError.RootElement.GetProperty("hint").GetString()).Contains("--input");
 			await Assert.That(ReadStatus(start)).IsEqualTo("failed");
-			await Assert.That(ReadStatus(Cli.Run(["session", "status", id]))).IsEqualTo("failed");
+			CliResult status = Cli.Run(["session", "status", id]);
+			await Assert.That(status.ExitCode).IsEqualTo(0);
+			await Assert.That(ReadStatus(status)).IsEqualTo("failed");
 			foreach (string[] command in new string[][] { ["list", "assets"], ["search", "Greeting"], ["get", "asset", "test.assets:1"] })
 			{
 				CliResult result = Cli.Run([.. command, "--session", id]);
@@ -211,6 +216,52 @@ internal class SessionTests
 			}
 		}
 		finally { Cli.Run(["session", "close", id]); }
+	}
+
+	[Test]
+	[Arguments("--no-wait")]
+	[Arguments("--timeout=0")]
+	public async Task DeferredMissingInputStillReportsFailedStatusAndRuntimeInspectErrors(string waiting)
+	{
+		string input = Path.Combine(Path.GetTempPath(), "missing-session-input-" + Guid.NewGuid().ToString("N"));
+		CliResult start = Cli.Run(["session", "start", "--input", input, waiting], environment: new Dictionary<string, string?> { ["ASSETRIPPER_TEST_SESSION_LOAD_DELAY_MS"] = "500" });
+		string id = ReadId(start);
+		try
+		{
+			await Assert.That(start.ExitCode).IsEqualTo(0);
+			await Assert.That(ReadStatus(start)).IsEqualTo("loading");
+			await WaitForState(id, "failed");
+			CliResult status = Cli.Run(["session", "status", id]);
+			await Assert.That(status.ExitCode).IsEqualTo(0);
+			await Assert.That(ReadStatus(status)).IsEqualTo("failed");
+			CliResult inspect = Cli.Run(["list", "assets", "--session", id]);
+			await Assert.That(inspect.ExitCode).IsEqualTo(1);
+			using JsonDocument error = JsonDocument.Parse(inspect.Stderr);
+			await Assert.That(error.RootElement.GetProperty("code").GetString()).IsEqualTo("session_failed");
+		}
+		finally { Cli.Run(["session", "close", id]); }
+	}
+
+	[Test]
+	public async Task UnreadableInputStartReturnsNotFoundInsteadOfReady()
+	{
+		string input = CreateGame();
+		string? id = null;
+		try
+		{
+			using FileStream locked = new(Path.Combine(input, "test.assets"), FileMode.Open, FileAccess.Read, FileShare.None);
+			CliResult start = Cli.Run(["session", "start", "--input", input]);
+			id = ReadId(start);
+			await Assert.That(start.ExitCode).IsEqualTo(5);
+			await Assert.That(ReadStatus(start)).IsEqualTo("failed");
+			using JsonDocument error = JsonDocument.Parse(start.Stderr);
+			await Assert.That(error.RootElement.GetProperty("code").GetString()).IsEqualTo("not_found");
+		}
+		finally
+		{
+			if (id is not null) Cli.Run(["session", "close", id]);
+			Directory.Delete(input, true);
+		}
 	}
 
 	[Test]
@@ -323,7 +374,7 @@ internal class SessionTests
 		return data.RootElement.GetProperty("id").GetString()!;
 	}
 
-	internal static string CreateGame()
+	internal static string CreateGame(string assetName = "Greeting")
 	{
 		string directory = Path.Combine(Path.GetTempPath(), "assetripper-session-test-" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(directory);
@@ -339,7 +390,7 @@ internal class SessionTests
 		using MemoryStream objectData = new();
 		using (BinaryWriter writer = new(objectData, Encoding.UTF8, leaveOpen: true))
 		{
-			foreach (string value in new[] { "Greeting", "Hello from CLI fixture!" })
+			foreach (string value in new[] { assetName, "Hello from CLI fixture!" })
 			{
 				byte[] bytes = Encoding.UTF8.GetBytes(value);
 				writer.Write(bytes.Length);

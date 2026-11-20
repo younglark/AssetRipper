@@ -59,9 +59,14 @@ internal static class JobCommand
 			if (positionals.Count == 2) return Missing(stderr, jsonMode);
 			if (positionals.Count != 3 || (timeout is not null && positionals[1] != "wait"))
 				throw new ArgumentException("Use job status <id>, job wait <id> [--timeout <seconds>], or job cancel <id>.");
+			if (positionals[1] == "wait")
+			{
+				SessionResponse running = new() { Job = new() { Id = positionals[2], Status = "running", Hint = $"Run assetripper job wait {positionals[2]}." } };
+				return Follow(running, timeout, stdout, stderr, jsonMode, queryImmediately: true);
+			}
 			SessionResponse? response = Send(positionals[2], positionals[1], jsonMode);
 			if (response is null) return Missing(stderr, jsonMode);
-			return positionals[1] is "wait" or "cancel"
+			return positionals[1] == "cancel"
 				? Follow(response, timeout, stdout, stderr, jsonMode) : Write(response, stdout, stderr, jsonMode);
 		}
 		catch (ArgumentException exception)
@@ -74,21 +79,42 @@ internal static class JobCommand
 		}
 	}
 
-	private static int Follow(SessionResponse response, double? timeout, TextWriter stdout, TextWriter stderr, bool jsonMode)
+	private static int Follow(SessionResponse response, double? timeout, TextWriter stdout, TextWriter stderr, bool jsonMode, bool queryImmediately = false)
 	{
 		Stopwatch waiting = Stopwatch.StartNew();
-		while (response.Job?.Status == "running" && (timeout is null || waiting.Elapsed.TotalSeconds < timeout))
+		while (response.Job?.Status == "running" && (queryImmediately || timeout is null || waiting.Elapsed.TotalSeconds < timeout))
 		{
-			Thread.Sleep(25);
-			response = Send(response.Job.Id!, "status", jsonMode) ?? throw new IOException("The Job owner has ended.");
+			if (!queryImmediately)
+			{
+				double pause = timeout is null ? 0.025 : Math.Min(0.025, Math.Max(0, timeout.Value - waiting.Elapsed.TotalSeconds));
+				Thread.Sleep(TimeSpan.FromSeconds(pause));
+			}
+			queryImmediately = false;
+			using CancellationTokenSource deadline = new();
+			if (timeout is not null)
+			{
+				// Timers have a finite maximum delay. Very long waits renew the request budget instead of expiring early.
+				double remaining = Math.Max(0, timeout.Value - waiting.Elapsed.TotalSeconds);
+				deadline.CancelAfter(TimeSpan.FromSeconds(Math.Min(remaining, (uint.MaxValue / 1000d) - 1)));
+			}
+			try
+			{
+				SessionResponse? next = Send(response.Job.Id!, "status", jsonMode, deadline.Token);
+				if (next is null) return Missing(stderr, jsonMode);
+				response = next;
+			}
+			catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+			{
+				if (timeout is not null && waiting.Elapsed.TotalSeconds >= timeout.Value) break;
+			}
 		}
 		return Write(response, stdout, stderr, jsonMode);
 	}
 
-	private static SessionResponse? Send(string id, string action, bool jsonMode)
+	private static SessionResponse? Send(string id, string action, bool jsonMode, CancellationToken cancellationToken = default)
 	{
 		if (id.Length != 64 || !Guid.TryParseExact(id[..32], "N", out _) || !Guid.TryParseExact(id[32..], "N", out _)) return null;
-		return SessionCommand.Send(id[..32], new() { Command = "job-" + action, Args = [id], JsonMode = jsonMode });
+		return SessionCommand.Send(id[..32], new() { Command = "job-" + action, Args = [id], JsonMode = jsonMode }, cancellationToken);
 	}
 
 	private static int Write(SessionResponse response, TextWriter stdout, TextWriter stderr, bool jsonMode)

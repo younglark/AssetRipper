@@ -90,7 +90,7 @@ internal static class GetAssetFormat
 	private static string WriteJson(IUnityObjectBase asset)
 	{
 		StringWriter writer = new(CultureInfo.InvariantCulture) { NewLine = "\n" };
-		asset.WalkStandard(new DefaultJsonWalker(writer));
+		asset.WalkStandard(new AssetJsonWalker(writer));
 		return writer.ToString();
 	}
 

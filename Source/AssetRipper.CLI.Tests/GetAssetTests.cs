@@ -1,3 +1,9 @@
+using AssetRipper.Assets;
+using AssetRipper.Assets.IO.Writing;
+using AssetRipper.SourceGenerated.Classes.ClassID_134;
+using AssetRipper.SourceGenerated.Classes.ClassID_329;
+using AssetRipper.SourceGenerated.Extensions;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using AssetRipper.IO.Endian;
@@ -9,6 +15,75 @@ namespace AssetRipper.CLI.Tests;
 
 internal class GetAssetTests
 {
+	[Test]
+	[Arguments("Infinity")]
+	[Arguments("-Infinity")]
+	[Arguments("NaN")]
+	public async Task JsonEncodesNonFiniteFloatsAsStringsWithoutChangingFiniteNumbersOrText(string special)
+	{
+		IPhysicsMaterial material = AssetCreator.CreatePhysicsMaterial(AssetRipper.Primitives.UnityVersion.Parse("2022.3.0f1"));
+		material.Name = "Infinity -Infinity NaN \"literal\"";
+		material.Bounciness = float.Parse(special, CultureInfo.InvariantCulture);
+		material.DynamicFriction = 0.25f;
+		VirtualFileSystem fileSystem = CreateAssetFixture(material);
+		CliResult list = Cli.Run(["list", "assets", "--input", "/game", "--type", "PhysicMaterial"], fileSystem: fileSystem);
+		await Assert.That(list.ExitCode).IsEqualTo(0);
+		using JsonDocument listed = JsonDocument.Parse(list.Stdout);
+		string reference = listed.RootElement.GetProperty("items")[0].GetProperty("ref").GetString()!;
+		Rewind(fileSystem, "/game/numbers.assets");
+		CliResult result = Cli.Run(["get", "asset", reference, "--input", "/game", "--format", "json"], fileSystem: fileSystem);
+		await Assert.That(result.ExitCode).IsEqualTo(0);
+		using JsonDocument payload = JsonDocument.Parse(result.Stdout);
+		await Assert.That(payload.RootElement.GetProperty("m_Bounciness").GetString()).IsEqualTo(special);
+		await Assert.That(payload.RootElement.GetProperty("m_DynamicFriction").GetSingle()).IsEqualTo(0.25f);
+		await Assert.That(payload.RootElement.GetProperty("m_Name").GetString()).IsEqualTo("Infinity -Infinity NaN \"literal\"");
+	}
+
+	[Test]
+	[Arguments("Infinity")]
+	[Arguments("-Infinity")]
+	[Arguments("NaN")]
+	public async Task JsonEncodesNonFiniteDoublesAsStrings(string special)
+	{
+		IVideoClip clip = AssetCreator.CreateVideoClip(AssetRipper.Primitives.UnityVersion.Parse("2022.3.0f1"));
+		clip.Name = "DoubleFixture";
+		clip.FrameRate = double.Parse(special, CultureInfo.InvariantCulture);
+		VirtualFileSystem fileSystem = CreateAssetFixture(clip);
+		CliResult list = Cli.Run(["list", "assets", "--input", "/game", "--name", "DoubleFixture"], fileSystem: fileSystem);
+		await Assert.That(list.ExitCode).IsEqualTo(0);
+		using JsonDocument listed = JsonDocument.Parse(list.Stdout);
+		string reference = listed.RootElement.GetProperty("items")[0].GetProperty("ref").GetString()!;
+		Rewind(fileSystem, "/game/numbers.assets");
+		CliResult result = Cli.Run(["get", "asset", reference, "--input", "/game", "--format", "json"], fileSystem: fileSystem);
+		await Assert.That(result.ExitCode).IsEqualTo(0);
+		using JsonDocument payload = JsonDocument.Parse(result.Stdout);
+		await Assert.That(payload.RootElement.GetProperty("m_FrameRate").GetString()).IsEqualTo(special);
+	}
+
+	private static VirtualFileSystem CreateAssetFixture(IUnityObjectBase asset)
+	{
+		VirtualFileSystem fileSystem = new();
+		fileSystem.Directory.Create("/game");
+		using MemoryStream objectData = new();
+		AssetWriter writer = new(objectData, asset.Collection);
+		asset.WriteRelease(writer);
+		writer.Flush();
+		SerializedType type = new() { TypeID = asset.ClassID, ScriptTypeIndex = -1 };
+		SerializedFileBuilder builder = new()
+		{
+			Generation = FormatVersion.LargeFilesSupport,
+			Version = asset.Collection.Version,
+			EndianType = EndianType.LittleEndian,
+			Platform = BuildTarget.StandaloneWin64Player,
+		};
+		builder.Types.Add(type);
+		builder.Objects.Add(new ObjectInfo(type) { FileID = 1, SerializedTypeIndex = 0, ObjectData = objectData.ToArray() });
+		using Stream stream = fileSystem.File.Create("/game/numbers.assets");
+		builder.Build().Write(stream);
+		stream.Position = 0;
+		return fileSystem;
+	}
+
 	[Test]
 	public async Task InvalidFormatIsAUsageErrorThatListsLegalValues()
 	{
@@ -23,6 +98,54 @@ internal class GetAssetTests
 		foreach (string format in new[] { "json", "yaml", "text", "binary", "image", "audio", "model", "font", "video" })
 		{
 			await Assert.That(hint!).Contains(format);
+		}
+	}
+
+	[Test]
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task SameNamedCollectionsHaveDistinctReferencesThatRetrieveEachAsset(bool useSession)
+	{
+		string first = SessionTests.CreateGame("FirstGreeting");
+		string second = SessionTests.CreateGame("OtherGreeting");
+		string? session = null;
+		try
+		{
+			string[] source = ["--input", first, "--input", second];
+			if (useSession)
+			{
+				CliResult start = Cli.Run(["session", "start", .. source]);
+				await Assert.That(start.ExitCode).IsEqualTo(0);
+				using JsonDocument started = JsonDocument.Parse(start.Stdout);
+				session = started.RootElement.GetProperty("id").GetString()!;
+				source = ["--session", session];
+			}
+			CliResult listed = Cli.Run(["list", "assets", .. source, "--type", "TextAsset"]);
+			await Assert.That(listed.ExitCode).IsEqualTo(0);
+			using JsonDocument list = JsonDocument.Parse(listed.Stdout);
+			JsonElement items = list.RootElement.GetProperty("items");
+			await Assert.That(items.GetArrayLength()).IsEqualTo(2);
+			string firstReference = FindItem(items, "FirstGreeting").GetProperty("ref").GetString()!;
+			string otherReference = FindItem(items, "OtherGreeting").GetProperty("ref").GetString()!;
+			await Assert.That(firstReference).IsNotEqualTo(otherReference);
+			CliResult searched = Cli.Run(["search", "Greeting", .. source]);
+			await Assert.That(searched.ExitCode).IsEqualTo(0);
+			using JsonDocument search = JsonDocument.Parse(searched.Stdout);
+			foreach (string name in new[] { "FirstGreeting", "OtherGreeting" })
+			{
+				string reference = FindItem(items, name).GetProperty("ref").GetString()!;
+				await Assert.That(FindItem(search.RootElement.GetProperty("items"), name).GetProperty("ref").GetString()).IsEqualTo(reference);
+				CliResult got = Cli.Run(["get", "asset", reference, .. source]);
+				await Assert.That(got.ExitCode).IsEqualTo(0);
+				using JsonDocument payload = JsonDocument.Parse(got.Stdout);
+				await Assert.That(payload.RootElement.GetProperty("m_Name").GetString()).IsEqualTo(name);
+			}
+		}
+		finally
+		{
+			if (session is not null) Cli.Run(["session", "close", session]);
+			Directory.Delete(first, true);
+			Directory.Delete(second, true);
 		}
 	}
 

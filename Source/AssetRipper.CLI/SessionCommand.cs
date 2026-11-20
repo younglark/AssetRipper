@@ -25,6 +25,7 @@ internal sealed class SessionResponse
 	public SessionPayload? Session { get; init; }
 	public ExportPayload? Job { get; init; }
 	public int ExitCode { get; init; }
+	public bool InputUnavailable { get; init; }
 	public string Stdout { get; init; } = "";
 	public string Stderr { get; init; } = "";
 }
@@ -120,7 +121,9 @@ internal static class SessionCommand
 				WriteSession(stdout, jsonMode, response.Session);
 				if (response.Session.Status == "failed")
 				{
-					return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "session_failed", response.Session.Message ?? "Session loading failed.", "Run assetripper session start again with readable inputs.");
+					return response.InputUnavailable
+						? CliOutput.WriteError(stderr, jsonMode, ExitCode.NotFound, "not_found", response.Session.Message ?? "An input path is missing or unreadable.", "Pass an existing, readable --input path to session start.")
+						: CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "session_failed", response.Session.Message ?? "Session loading failed.", "Run assetripper session start again with readable inputs.");
 				}
 
 				return ExitCode.Success;
@@ -186,7 +189,7 @@ internal static class SessionCommand
 			start.ArgumentList.Add(input);
 		}
 
-		foreach (string name in new[] { "ASSETRIPPER_TEST_SESSION_IDLE_MS", "ASSETRIPPER_TEST_SESSION_LOAD_DELAY_MS", "ASSETRIPPER_TEST_EXPORT_DELAY_MS", "ASSETRIPPER_TEST_EXPORT_WRITE_DELAY_MS" })
+		foreach (string name in new[] { "ASSETRIPPER_TEST_SESSION_IDLE_MS", "ASSETRIPPER_TEST_SESSION_LOAD_DELAY_MS", "ASSETRIPPER_TEST_EXPORT_DELAY_MS", "ASSETRIPPER_TEST_EXPORT_WRITE_DELAY_MS", "ASSETRIPPER_TEST_JOB_REPLY_DELAY_MS" })
 		{
 			start.Environment.Remove(name);
 			if (environment(name) is string value)
@@ -234,7 +237,7 @@ internal static class SessionCommand
 		return result.ExitCode;
 	}
 
-	internal static SessionResponse? Send(string id, SessionRequest request)
+	internal static SessionResponse? Send(string id, SessionRequest request, CancellationToken cancellationToken = default)
 	{
 		if (!Guid.TryParseExact(id, "N", out _))
 		{
@@ -243,18 +246,24 @@ internal static class SessionCommand
 
 		try
 		{
+			string path = SocketPath(id);
+			// A missing local endpoint is known not-found even when the caller has no time left for a reply.
+			if (!File.Exists(path)) return null;
 			using Socket socket = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-			using CancellationTokenSource timeout = new(TimeSpan.FromMilliseconds(250));
-			socket.ConnectAsync(new UnixDomainSocketEndPoint(SocketPath(id)), timeout.Token).AsTask().GetAwaiter().GetResult();
+			using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+			timeout.CancelAfter(TimeSpan.FromMilliseconds(250));
+			// Start the local connection before observing a zero wait budget, so immediate not-found errors remain distinguishable.
+			socket.ConnectAsync(new UnixDomainSocketEndPoint(path)).WaitAsync(timeout.Token).GetAwaiter().GetResult();
 			using NetworkStream pipe = new(socket);
 			using StreamWriter writer = new(pipe, leaveOpen: true) { AutoFlush = true };
 			using StreamReader reader = new(pipe, leaveOpen: true);
-			writer.WriteLine(JsonSerializer.Serialize(request, CliJsonContext.Default.SessionRequest));
-			string? line = reader.ReadLine();
+			writer.WriteLineAsync(JsonSerializer.Serialize(request, CliJsonContext.Default.SessionRequest).AsMemory(), cancellationToken).GetAwaiter().GetResult();
+			string? line = reader.ReadLineAsync(cancellationToken).AsTask().GetAwaiter().GetResult();
 			return line is null ? null : JsonSerializer.Deserialize(line, CliJsonContext.Default.SessionResponse);
 		}
 		catch (Exception exception) when (exception is IOException or SocketException or OperationCanceledException or UnauthorizedAccessException)
 		{
+			cancellationToken.ThrowIfCancellationRequested();
 			return null;
 		}
 	}

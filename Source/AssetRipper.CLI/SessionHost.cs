@@ -31,9 +31,20 @@ internal static class SessionHost
 
 			foreach (string input in inputs)
 			{
-				if (!File.Exists(input) && !Directory.Exists(input))
+				try
 				{
-					throw new FileNotFoundException($"Input path '{input}' was not found.");
+					if (Directory.Exists(input))
+					{
+						foreach (string file in Directory.EnumerateFiles(input, "*", SearchOption.AllDirectories))
+						{
+							using Stream stream = File.OpenRead(file);
+						}
+					}
+					else { using Stream stream = File.OpenRead(input); }
+				}
+				catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+				{
+					throw new InputPathException($"Input path '{input}' is missing or unreadable: {exception.Message}");
 				}
 			}
 			FullConfiguration settings = new();
@@ -46,6 +57,7 @@ internal static class SessionHost
 			idle = TimeSpan.FromMilliseconds(idleMs);
 		}
 
+		int replyDelay = int.TryParse(Environment.GetEnvironmentVariable("ASSETRIPPER_TEST_JOB_REPLY_DELAY_MS"), out int replyDelayMs) ? replyDelayMs : 0;
 		Dictionary<string, ExportJob> jobs = [];
 		ExportJob? active = null;
 		string socketPath = SessionCommand.SocketPath(id);
@@ -130,7 +142,13 @@ internal static class SessionHost
 							}
 						}
 					}
-					else response = request.Command == "inspect" ? Inspect(request, state, loading) : new() { Session = state };
+					else response = request.Command == "inspect" ? Inspect(request, state, loading) : new() { Session = state, InputUnavailable = loading.Exception?.InnerException is InputPathException };
+					if (request.Command == "job-status" && replyDelay > 0)
+					{
+						int delay = replyDelay;
+						replyDelay = 0;
+						await Task.Delay(delay);
+					}
 					await writer.WriteLineAsync(JsonSerializer.Serialize(response, CliJsonContext.Default.SessionResponse));
 					if (request.Command == "close" && response.ExitCode == 0)
 					{
@@ -162,6 +180,8 @@ internal static class SessionHost
 		}
 		return ExitCode.Success;
 	}
+
+	private sealed class InputPathException(string message) : IOException(message);
 
 	private static async Task ReleaseOneShotData(Task completion, Task<GameData> loading)
 	{

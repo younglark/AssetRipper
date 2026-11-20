@@ -123,7 +123,7 @@ internal static class InspectCommand
 				{
 					Name = name,
 					Type = asset.ClassName,
-					Ref = $"{asset.Collection.Name}:{asset.PathID}",
+					Ref = AssetReferences.For(gameBundle).Get(asset),
 				});
 			}
 		}
