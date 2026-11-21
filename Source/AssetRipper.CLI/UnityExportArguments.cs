@@ -1,3 +1,5 @@
+using AssetRipper.Export.Configuration;
+
 namespace AssetRipper.CLI;
 
 internal sealed class UnityExportArguments
@@ -10,6 +12,7 @@ internal sealed class UnityExportArguments
 	public string? Session { get; private set; }
 	public double? Timeout { get; private set; }
 	public bool NoWait { get; private set; }
+	public SpriteExportMode? SpriteExportMode { get; private set; }
 
 	public static UnityExportArguments Parse(string[] args)
 	{
@@ -54,6 +57,17 @@ internal sealed class UnityExportArguments
 					}
 					result.Confirm = value!;
 					break;
+				case "--sprite-export-mode":
+					if (result.SpriteExportMode is not null)
+					{
+						throw new ArgumentException("Pass --sprite-export-mode only once.");
+					}
+					if (!SpriteExportModeExtensions.TryParseCliValue(value, out SpriteExportMode mode))
+					{
+						throw new ArgumentException("Pass --sprite-export-mode as yaml, yaml-unpacked, yaml-baked, native, or texture2d.");
+					}
+					result.SpriteExportMode = mode;
+					break;
 				case "--wait":
 					wait = true;
 					break;
@@ -69,6 +83,10 @@ internal sealed class UnityExportArguments
 			throw new ArgumentException("Unexpected arguments. Run assetripper export --help.");
 		}
 		result.Kind = positionals[1];
+		if (result.Kind != "unity-project" && result.SpriteExportMode is not null)
+		{
+			throw new ArgumentException("--sprite-export-mode is only supported for unity-project exports.");
+		}
 		if (result.Output.Length == 0)
 		{
 			throw new ArgumentException("Pass --output <dir>.");
@@ -92,7 +110,7 @@ internal sealed class UnityExportArguments
 			string arg = args[i];
 			int separator = arg.IndexOf('=');
 			string flag = separator >= 0 ? arg[..separator] : arg;
-			if (flag is "--input" or "--output" or "--session" or "--timeout" or "--confirm")
+			if (flag is "--input" or "--output" or "--session" or "--timeout" or "--confirm" or "--sprite-export-mode")
 			{
 				string? value = separator >= 0 ? arg[(separator + 1)..]
 					: i + 1 < args.Length && !args[i + 1].StartsWith('-') ? args[++i] : null;

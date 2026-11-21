@@ -1,4 +1,5 @@
 using AssetRipper.Export.Configuration;
+using AssetRipper.TextureDecoder.Rgb.Formats;
 
 namespace AssetRipper.Export.Modules.Textures;
 
@@ -83,6 +84,8 @@ public abstract class DirectBitmap
 	public abstract DirectBitmap Crop(Range xRange, Range yRange, Range zRange);
 
 	public abstract DirectBitmap DeepClone();
+
+	public abstract DirectBitmap<ColorRGBA<byte>, byte> ConvertToRgba32();
 
 	public void Save(Stream stream, ImageExportFormat format)
 	{

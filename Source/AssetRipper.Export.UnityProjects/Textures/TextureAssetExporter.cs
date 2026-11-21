@@ -14,7 +14,7 @@ public class TextureAssetExporter : BinaryAssetExporter
 	public ImageExportFormat ImageExportFormat { get; }
 	private SpriteExportMode SpriteExportMode { get; }
 	public bool PreferOriginalTextureExtension { get; }
-	private bool ExportSprites => SpriteExportMode is not SpriteExportMode.Yaml;
+	private bool ExportSprites => !SpriteExportMode.UsesYamlSpriteAssets();
 
 	public TextureAssetExporter(FullConfiguration configuration)
 	{

@@ -151,7 +151,7 @@ public static class Program
 	private static bool TakesValue(string flag)
 	{
 		return flag is "--input" or "--session" or "--output" or "--confirm" or "--timeout"
-			or "--limit" or "--cursor" or "--name" or "--type" or "--format";
+			or "--limit" or "--cursor" or "--name" or "--type" or "--format" or "--sprite-export-mode";
 	}
 
 	private static string? GetUnknownCommand(List<string> positionals)
@@ -189,7 +189,7 @@ public static class Program
 	{
 		string[] plannedFlags = command switch
 		{
-			"export" => ["--input", "--session", "--output", "--dry-run", "--confirm", "--timeout", "--no-wait", "--wait"],
+			"export" => ["--input", "--session", "--output", "--dry-run", "--confirm", "--timeout", "--no-wait", "--wait", "--sprite-export-mode"],
 			"list" => ["--input", "--session", "--limit", "--cursor", "--name", "--type"],
 			"get" => ["--input", "--session", "--format", "--output", "--confirm"],
 			"search" => ["--input", "--session", "--limit", "--cursor"],

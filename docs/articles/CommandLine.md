@@ -214,6 +214,7 @@ assetripper --json --version
 
 ```text
 assetripper export unity-project --input ./Game --output ./ExportedProject
+assetripper export unity-project --input ./Game --output ./ExportedProject --sprite-export-mode yaml-unpacked
 assetripper export primary-content --input ./Game --output ./Content --dry-run
 assetripper export unity-project --session <id> --output ./ExportedProject --timeout 60
 assetripper export primary-content --input ./Game --output ./Content --no-wait
@@ -232,11 +233,16 @@ Export waits until it finishes by default. Progress goes to stderr only. `--outp
 | `--output <dir>` | Destination directory (required) |
 | `--dry-run` | Preview the files that would be written without changing the disk, including when the output directory is not empty |
 | `--confirm <name>` | Confirm writing into a non-empty directory. `<name>` must be the resolved directory name. Both `--confirm=<name>` and `--confirm <name>` are accepted. |
+| `--sprite-export-mode <mode>` | Only supported for `unity-project` (rejected for `primary-content`): sprite mode: `yaml` (the built-in default), `yaml-unpacked`, `yaml-baked`, `native`, or `texture2d`. If omitted, the CLI uses the loaded default configuration, otherwise `yaml`. `yaml-unpacked` writes each Sprite as a YAML `.asset` that references a newly unpacked individual RGBA PNG texture (independent of the global image export format; the original atlas still uses that format). `yaml-baked` instead offline-rasters the current mesh and native UVs onto the original logical canvas and writes a FullRect YAML Sprite that references that independent RGBA PNG (also independent of the global image format). FlipHorizontal is handled by native UV sampling, not the yaml-unpacked integer-phase unpack guard. Color space is taken from PlayerSettings `m_ActiveColorSpace` when that field can be read; if it is missing, the exporter logs a diagnostic and bakes in Gamma rather than guessing. Unsupported sprites fall back to the regular YAML atlas or sheet reference. Both experimental modes use the same local importer policy on the independent PNGs (uncompressed RGBA32, `alphaIsTransparency=0`, no mipmaps) and do not change the default TextureImporter strategy of other export modes. |
 | `--timeout <seconds>` | Stop waiting after this many seconds and return a queryable Job (exit `0`, not `8`) |
 | `--no-wait` | Return a queryable Job immediately (exit `0`, not `8`) |
 | `--wait` | Wait for completion (default). Cannot be combined with `--no-wait`. Accepted by the command; not currently listed in `export --help`. |
 | `--json` | Write result data as JSON even when stdout is a TTY |
 | `--help` | Show this help |
+
+`yaml-unpacked` preserves source importer sRGB/filter/wrap/aniso/mip-bias/readability settings, but always writes independent RGBA PNGs with uncompressed RGBA32 import and no alpha RGB dilation. It currently refuses mipmapped/streaming-mipmap sources, non-default texture usage (including normal maps and encoded lightmaps), HDR/high-precision/signed or unverified source formats. Ordinary LDR color formats on the existing byte decoder path remain eligible; this is decoded-texel preservation, not proof of identical GPU filtering.
+
+Unpacking is bounded to 16384 pixels per side and 16,777,216 pixels per source image or logical canvas, with one source image layer. Unsupported/missing atlas bindings, dependencies, instance-data branches, UV/index layouts, non-finite geometry, variants, nonzero atlas offsets, or unknown packing settings warn and retain the regular YAML reference. Tight coverage uses closed triangle/pixel-square intersection and retains original texel RGBA; filtering edges, extrusion, packing tags, Unity save/reload and renderer/UI behavior still require Editor validation. The original atlas is retained.
 
 `--timeout` takes a non-negative number of seconds. On `--timeout` or `--no-wait`, the process that owns the Job keeps enough state for that Job to finish, fail, or be cancelled after this command exits.
 
@@ -380,7 +386,7 @@ A non-empty output directory is refused by default with exit `1` and a hint to c
 
 `--confirm` must be the resolved directory name (the final segment of the full path), not a generic yes value, and not a relative token such as `.` or `..`. For example, `--output .` must be confirmed with the current directory's real name. The comparison is case-sensitive. Confirmed export writes into the directory without first deleting files that are already there.
 
-A second export of the same inputs and the same export kind to the same output directory exits `0` and reports `existing: true` without writing again. That match is recognized from `.assetripper-export.json` in a successful output directory. A non-empty directory that is not the result of that same export is still refused unless you pass a matching `--confirm`.
+A second export of the same inputs, the same export kind, and the same effective export settings to the same output directory exits `0` and reports `existing: true` without writing again. That match is recognized from `.assetripper-export.json` in a successful output directory. The manifest records a settings fingerprint that includes the Sprite export mode, so changing `--sprite-export-mode` (for example from `yaml` to `yaml-unpacked`) is not treated as an Existing export. A completed manifest written before this fingerprint existed cannot prove the old effective settings (a configuration file could override the built-in default); it requires a matching `--confirm` to export again. A non-empty directory that is not the result of that same export is still refused unless you pass a matching `--confirm`.
 
 There is no global `--yes` or `--allow-mutations` switch.
 

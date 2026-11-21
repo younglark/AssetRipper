@@ -18,4 +18,9 @@
 		<ProjectReference Include="..\UnityEngine\UnityEngine.csproj" />
 	</ItemGroup>
 
+
+	<ItemGroup>
+		<None Include="TestData/OfflineSpriteRaster/**/*" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
+
 </Project>

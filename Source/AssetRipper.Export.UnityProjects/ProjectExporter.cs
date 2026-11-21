@@ -3,6 +3,8 @@ using AssetRipper.Assets.Bundles;
 using AssetRipper.Import.Configuration;
 using AssetRipper.Import.Logging;
 
+using AssetRipper.Export.UnityProjects.Textures;
+
 namespace AssetRipper.Export.UnityProjects;
 
 public sealed partial class ProjectExporter
@@ -14,6 +16,7 @@ public sealed partial class ProjectExporter
 	public event Action? EventExportFinished;
 
 	private readonly ObjectHandlerStack<IAssetExporter> assetExporterStack = new();
+	private YamlSpriteExporter? yamlSpriteExporter;
 
 	/// <summary>Adds an exporter to the stack of exporters for this asset type.</summary>
 	/// <typeparam name="T">The c sharp type of this asset type. Any inherited types also get this exporter.</typeparam>
@@ -117,6 +120,11 @@ public sealed partial class ProjectExporter
 				}
 				collections.Add(collection);
 			}
+		}
+
+		if (yamlSpriteExporter is not null)
+		{
+			collections.AddRange(yamlSpriteExporter.ExtraExportCollections);
 		}
 
 		return collections;

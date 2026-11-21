@@ -11,6 +11,8 @@ public sealed class SpriteExportModeDropDownSetting : DropDownSetting<SpriteExpo
 	protected override string GetDisplayName(SpriteExportMode value) => value switch
 	{
 		SpriteExportMode.Yaml => Localization.SpriteFormatYaml,
+		SpriteExportMode.YamlUnpacked => Localization.SpriteFormatYamlUnpacked,
+		SpriteExportMode.YamlBaked => Localization.SpriteFormatYamlBaked,
 		SpriteExportMode.Native => Localization.SpriteFormatNative,
 		SpriteExportMode.Texture2D => Localization.SpriteFormatTexture,
 		_ => base.GetDisplayName(value),
@@ -19,6 +21,8 @@ public sealed class SpriteExportModeDropDownSetting : DropDownSetting<SpriteExpo
 	protected override string? GetDescription(SpriteExportMode value) => value switch
 	{
 		SpriteExportMode.Yaml => Localization.SpriteFormatYamlDescription,
+		SpriteExportMode.YamlUnpacked => Localization.SpriteFormatYamlUnpackedDescription,
+		SpriteExportMode.YamlBaked => Localization.SpriteFormatYamlBakedDescription,
 		SpriteExportMode.Native => Localization.SpriteFormatNativeDescription,
 		SpriteExportMode.Texture2D => Localization.SpriteFormatTextureDescription,
 		_ => base.GetDescription(value),

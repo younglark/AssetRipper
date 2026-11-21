@@ -32,6 +32,7 @@ OPTIONS
 
 EXAMPLES
   assetripper export unity-project --input ./Game --output ./ExportedProject
+  assetripper export unity-project --input ./Game --output ./ExportedProject --sprite-export-mode yaml-unpacked
   assetripper export primary-content --input ./Game --output ./Content --dry-run
   assetripper list assets --input ./Game --name "*.png"
   assetripper get asset <ref> --session <id> --format json
@@ -48,7 +49,7 @@ Export loaded assets as a Unity project or as their primary decoded files.
 
 Use repeatable --input or a ready --session, and required --output. Export waits for completion by default.
 --dry-run previews the files that would be written without changing the disk, including when the output directory is not empty.
-A non-empty output directory is refused unless it is an Existing export of the same inputs, or --confirm=<directory name> is passed. A second identical export reports existing: true and does not write again.
+A non-empty output directory is refused unless it is an Existing export of the same inputs and effective export settings, or --confirm=<directory name> is passed. A second identical export reports existing: true and does not write again.
 --timeout and --no-wait leave a queryable Job running after this command exits (exit 0, not 8).
 Run job wait <id> to retrieve completion. Progress goes to stderr only.
 Only one write runs per Session. A conflict exits 8 and names the Job to wait for.
@@ -59,6 +60,8 @@ OPTIONS
   --output <dir>       Destination directory (required)
   --dry-run            Preview the files that would be written without changing the disk
   --confirm <name>     Confirm writing into a non-empty directory; <name> must be the directory name
+  --sprite-export-mode <mode>
+                       Only for unity-project: sprite mode: yaml (default), yaml-unpacked (independent RGBA PNG), yaml-baked (offline FullRect PNG), native, or texture2d
   --timeout <seconds>  Stop waiting after this many seconds and return a queryable Job
   --no-wait            Return a queryable Job immediately
   --json               Write result data as JSON even when stdout is a TTY
@@ -66,6 +69,7 @@ OPTIONS
 
 EXAMPLES
   assetripper export unity-project --input ./Game --output ./ExportedProject
+  assetripper export unity-project --input ./Game --output ./ExportedProject --sprite-export-mode yaml-unpacked
   assetripper export primary-content --input ./Game --output ./Content --dry-run
   assetripper export unity-project --session <id> --output ./ExportedProject --timeout 60
   assetripper export primary-content --input ./Game --output ./Content --no-wait

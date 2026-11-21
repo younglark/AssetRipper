@@ -122,6 +122,18 @@ public sealed class DirectBitmap<TColor, TChannel> : DirectBitmap
 		return new DirectBitmap<TColor, TChannel>(xLength, yLength, zLength, croppedData);
 	}
 
+
+	public override DirectBitmap<ColorRGBA<byte>, byte> ConvertToRgba32()
+	{
+		if (this is DirectBitmap<ColorRGBA<byte>, byte> rgba)
+		{
+			return rgba;
+		}
+
+		RgbConverter.Convert<TColor, TChannel, ColorRGBA<byte>, byte>(Bits, Width, Height * Math.Max(Depth, 1), out byte[] data);
+		return new DirectBitmap<ColorRGBA<byte>, byte>(Width, Height, Depth, data);
+	}
+
 	public override DirectBitmap<TColor, TChannel> DeepClone()
 	{
 		byte[] data = new byte[Data.Length];

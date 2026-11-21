@@ -29,6 +29,7 @@ internal sealed class ExportManifest
 {
 	public required string Kind { get; init; }
 	public required IReadOnlyList<string> Inputs { get; init; }
+	public string? SettingsFingerprint { get; init; }
 }
 
 internal sealed class InspectItem

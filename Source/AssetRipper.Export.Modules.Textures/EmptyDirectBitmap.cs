@@ -1,4 +1,6 @@
-﻿namespace AssetRipper.Export.Modules.Textures;
+using AssetRipper.TextureDecoder.Rgb.Formats;
+
+namespace AssetRipper.Export.Modules.Textures;
 
 internal sealed class EmptyDirectBitmap : DirectBitmap
 {
@@ -27,6 +29,8 @@ internal sealed class EmptyDirectBitmap : DirectBitmap
 	public override EmptyDirectBitmap Crop(Range xRange, Range yRange, Range zRange) => this;
 
 	public override EmptyDirectBitmap DeepClone() => this;
+
+	public override DirectBitmap<ColorRGBA<byte>, byte> ConvertToRgba32() => new(0, 0, 1);
 
 	public override void SaveAsBmp(Stream stream)
 	{

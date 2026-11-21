@@ -110,11 +110,11 @@ partial class ProjectExporter
 		OverrideExporter<ITexture2D>(textureExporter); //Texture2D and Cubemap
 		OverrideExporter<ISprite>(textureExporter);
 		OverrideExporter<SpriteInformationObject>(textureExporter);
-		if (settings.ExportSettings.SpriteExportMode == SpriteExportMode.Yaml)
+		if (settings.ExportSettings.SpriteExportMode.UsesYamlSpriteAssets())
 		{
-			YamlSpriteExporter spriteExporter = new();
-			OverrideExporter<ISprite>(spriteExporter);
-			OverrideExporter<ISpriteAtlas>(spriteExporter);
+			yamlSpriteExporter = new YamlSpriteExporter(settings.ExportSettings.SpriteExportMode);
+			OverrideExporter<ISprite>(yamlSpriteExporter);
+			OverrideExporter<ISpriteAtlas>(yamlSpriteExporter);
 		}
 		if (settings.ExportSettings.LightmapTextureExportFormat is not LightmapTextureExportFormat.Yaml)
 		{

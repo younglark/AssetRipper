@@ -411,6 +411,147 @@ internal class UnityProjectExportTests
 		await Assert.That(fileSystem.File.ReadAllText("/output")).IsEqualTo("preserve");
 	}
 
+
+	[Test]
+	public async Task SuccessfulExportManifestIncludesTheSpriteModeFingerprint()
+	{
+		VirtualFileSystem fileSystem = CreateGame();
+		CliResult result = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output"], fileSystem: fileSystem);
+		await Assert.That(result.ExitCode).IsEqualTo(0);
+		using JsonDocument manifest = JsonDocument.Parse(fileSystem.File.ReadAllText("/output/.assetripper-export.json"));
+		await Assert.That(manifest.RootElement.GetProperty("settingsFingerprint").GetString()).IsEqualTo("sprite-export-mode=yaml");
+	}
+
+	[Test]
+	[Arguments("yaml")]
+	[Arguments("yaml-unpacked")]
+	[Arguments("native")]
+	[Arguments("texture2d")]
+	public async Task SpriteExportModeFlagIsAccepted(string mode)
+	{
+		VirtualFileSystem fileSystem = CreateGame();
+		CliResult result = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output", "--sprite-export-mode", mode], fileSystem: fileSystem);
+		await Assert.That(result.ExitCode).IsEqualTo(0);
+		using JsonDocument manifest = JsonDocument.Parse(fileSystem.File.ReadAllText("/output/.assetripper-export.json"));
+		await Assert.That(manifest.RootElement.GetProperty("settingsFingerprint").GetString()).IsEqualTo($"sprite-export-mode={mode}");
+	}
+
+	[Test]
+	public async Task InvalidSpriteExportModeIsAUsageError()
+	{
+		VirtualFileSystem fileSystem = CreateGame();
+		CliResult result = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output", "--sprite-export-mode", "not-a-mode"], fileSystem: fileSystem);
+		await Assert.That(result.ExitCode).IsEqualTo(2);
+		await Assert.That(result.Stdout).IsEmpty();
+		using JsonDocument error = JsonDocument.Parse(result.Stderr);
+		await Assert.That(error.RootElement.GetProperty("code").GetString()).IsEqualTo("usage");
+		await Assert.That(error.RootElement.GetProperty("hint").GetString()).Contains("--sprite-export-mode");
+		await Assert.That(fileSystem.Directory.Exists("/output")).IsFalse();
+	}
+
+	[Test]
+	public async Task ChangingSpriteExportModeIsNotAnExistingExport()
+	{
+		VirtualFileSystem fileSystem = CreateGame();
+		CliResult first = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output"], fileSystem: fileSystem);
+		await Assert.That(first.ExitCode).IsEqualTo(0);
+		const string greetingPath = "/output/ExportedProject/Assets/TextAsset/Greeting.txt";
+		fileSystem.File.WriteAllText(greetingPath, "changed");
+
+		CliResult second = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output", "--sprite-export-mode", "yaml-unpacked"], fileSystem: fileSystem);
+		await Assert.That(second.ExitCode).IsEqualTo(1);
+		await Assert.That(second.Stdout).IsEmpty();
+		using JsonDocument error = JsonDocument.Parse(second.Stderr);
+		await Assert.That(error.RootElement.GetProperty("code").GetString()).IsEqualTo("output_not_empty");
+		await Assert.That(fileSystem.File.ReadAllText(greetingPath)).IsEqualTo("changed");
+		using JsonDocument manifest = JsonDocument.Parse(fileSystem.File.ReadAllText("/output/.assetripper-export.json"));
+		await Assert.That(manifest.RootElement.GetProperty("settingsFingerprint").GetString()).IsEqualTo("sprite-export-mode=yaml");
+	}
+
+	[Test]
+	public async Task ConfirmedSpriteModeChangeWritesANewFingerprint()
+	{
+		VirtualFileSystem fileSystem = CreateGame();
+		CliResult first = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output"], fileSystem: fileSystem);
+		await Assert.That(first.ExitCode).IsEqualTo(0);
+		Rewind(fileSystem, "/game/test.assets");
+
+		CliResult second = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output", "--sprite-export-mode", "yaml-unpacked", "--confirm", "output"], fileSystem: fileSystem);
+		await Assert.That(second.ExitCode).IsEqualTo(0);
+		using JsonDocument data = JsonDocument.Parse(second.Stdout);
+		await Assert.That(data.RootElement.TryGetProperty("existing", out _)).IsFalse();
+		using JsonDocument manifest = JsonDocument.Parse(fileSystem.File.ReadAllText("/output/.assetripper-export.json"));
+		await Assert.That(manifest.RootElement.GetProperty("settingsFingerprint").GetString()).IsEqualTo("sprite-export-mode=yaml-unpacked");
+	}
+
+	[Test]
+	[Arguments("yaml")]
+	[Arguments("native")]
+	public async Task LegacyManifestWithoutFingerprintCannotProveEffectiveSettings(string mode)
+	{
+		VirtualFileSystem fileSystem = CreateGame();
+		CliResult first = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output"], fileSystem: fileSystem);
+		await Assert.That(first.ExitCode).IsEqualTo(0);
+		fileSystem.File.WriteAllText("/output/.assetripper-export.json", """{"kind":"unity-project","inputs":["/game"]}""");
+		const string greetingPath = "/output/ExportedProject/Assets/TextAsset/Greeting.txt";
+		fileSystem.File.WriteAllText(greetingPath, "changed");
+		CliResult second = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output", "--sprite-export-mode", mode], fileSystem: fileSystem);
+		await Assert.That(second.ExitCode).IsEqualTo(1);
+		using JsonDocument error = JsonDocument.Parse(second.Stderr);
+		await Assert.That(error.RootElement.GetProperty("code").GetString()).IsEqualTo("output_not_empty");
+		await Assert.That(fileSystem.File.ReadAllText(greetingPath)).IsEqualTo("changed");
+	}
+
+	[Test]
+	public async Task YamlUnpackedDryRunMatchesTheRealExportFileList()
+	{
+		VirtualFileSystem fileSystem = CreateGame();
+		CliResult preview = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output", "--sprite-export-mode", "yaml-unpacked", "--dry-run"], fileSystem: fileSystem);
+		await Assert.That(preview.ExitCode).IsEqualTo(0);
+		using JsonDocument previewData = JsonDocument.Parse(preview.Stdout);
+		await Assert.That(previewData.RootElement.GetProperty("status").GetString()).IsEqualTo("dry_run");
+		List<string> previewFiles = [.. previewData.RootElement.GetProperty("files").EnumerateArray().Select(element => element.GetString()!)];
+		await Assert.That(fileSystem.Directory.Exists("/output")).IsFalse();
+		Rewind(fileSystem, "/game/test.assets");
+
+		CliResult exported = Cli.Run(["export", "unity-project", "--input", "/game", "--output", "/output", "--sprite-export-mode", "yaml-unpacked"], fileSystem: fileSystem);
+		await Assert.That(exported.ExitCode).IsEqualTo(0);
+		List<string> exportedFiles = [];
+		foreach (string path in fileSystem.Directory.EnumerateFiles("/output", "*", System.IO.SearchOption.AllDirectories))
+		{
+			string relative = fileSystem.Path.GetRelativePath("/output", path).Replace('\\', '/');
+			if (relative != ".assetripper-export.json")
+			{
+				exportedFiles.Add(relative);
+			}
+		}
+
+		exportedFiles.Sort(StringComparer.Ordinal);
+		previewFiles.Sort(StringComparer.Ordinal);
+		await Assert.That(previewFiles.SequenceEqual(exportedFiles, StringComparer.Ordinal)).IsTrue();
+	}
+
+	[Test]
+	public async Task ExportHelpDocumentsSpriteExportMode()
+	{
+		CliResult result = Cli.Run(["export", "--help"]);
+		await Assert.That(result.ExitCode).IsEqualTo(0);
+		await Assert.That(result.Stderr).IsEmpty();
+		await Assert.That(result.Stdout).Contains("--sprite-export-mode");
+		await Assert.That(result.Stdout).Contains("yaml-unpacked");
+		await Assert.That(result.Stdout).Contains("yaml-baked");
+	}
+
+	[Test]
+	public async Task PrimaryContentRejectsSpriteExportMode()
+	{
+		VirtualFileSystem fs = CreateGame();
+		CliResult result = Cli.Run(["export", "primary-content", "--input", "/game", "--output", "/output", "--sprite-export-mode", "yaml-unpacked"], fileSystem: fs);
+		await Assert.That(result.ExitCode).IsEqualTo(2);
+		await Assert.That(result.Stderr).Contains("only supported for unity-project");
+		await Assert.That(fs.Directory.Exists("/output")).IsFalse();
+	}
+
 	private static VirtualFileSystem CreateGame(VirtualFileSystem? fileSystem = null, string directory = "/game", string assetName = "Greeting", string fileName = "test.assets")
 	{
 		fileSystem ??= new();

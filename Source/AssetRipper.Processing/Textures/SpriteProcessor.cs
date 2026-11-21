@@ -18,6 +18,9 @@ public sealed partial class SpriteProcessor : IAssetProcessor
 	public void Process(GameData gameData)
 	{
 		ObjectFactory factory = new ObjectFactory(gameData);
+		SpriteSourceSnapshotCollector snapshots = new();
+		List<ISprite> sprites = [];
+		HashSet<ISprite> packedSprites = [];
 		foreach (IUnityObjectBase asset in gameData.GameBundle
 			.FetchAssetCollections()
 			.Where(c => !SpecialFileNames.IsDefaultResourceOrBuiltinExtra(c.Name))
@@ -32,28 +35,37 @@ public sealed partial class SpriteProcessor : IAssetProcessor
 			}
 			else if (asset is ISprite sprite)
 			{
-				ITexture2D? spriteTexture = sprite.TryGetTexture();
-				if (spriteTexture is not null)
-				{
-					SpriteInformationObject spriteInformationObject = factory.GetOrCreate(spriteTexture);
-					ISpriteAtlas? atlas = sprite.SpriteAtlasP;
-					spriteInformationObject.AddToDictionary(sprite, atlas);
-				}
-
-				ProcessSprite(sprite);
+				snapshots.CaptureSprite(sprite);
+				sprites.Add(sprite);
 			}
 			else if (asset is ISpriteAtlas atlas && atlas.RenderDataMap.Count > 0)
 			{
+				snapshots.CaptureAtlas(atlas);
 				foreach (ISprite packedSprite in atlas.PackedSpritesP.WhereNotNull())
 				{
 					if (TryGetPackedSpriteTexture(atlas, packedSprite, out ITexture2D? spriteTexture))
 					{
 						SpriteInformationObject spriteInformationObject = factory.GetOrCreate(spriteTexture);
 						spriteInformationObject.AddToDictionary(packedSprite, atlas);
+						packedSprites.Add(packedSprite);
 					}
 				}
 			}
 		}
+
+		snapshots.StoreResolvedSnapshots();
+		foreach (ISprite sprite in sprites)
+		{
+			// A placeholder RD texture must not assign the same Sprite to a second
+			// SpriteInformationObject after the atlas mapping has been resolved.
+			if (!packedSprites.Contains(sprite) && SpriteSourceSnapshotStore.TryGet(sprite, out SpriteSourceSnapshot? snapshot)
+				&& snapshot.Texture is { } texture)
+			{
+				factory.GetOrCreate(texture).AddToDictionary(sprite, sprite.SpriteAtlasP);
+			}
+			ProcessSprite(sprite);
+		}
+
 		foreach (SpriteInformationObject asset in factory.Assets)
 		{
 			asset.SetMainAsset();

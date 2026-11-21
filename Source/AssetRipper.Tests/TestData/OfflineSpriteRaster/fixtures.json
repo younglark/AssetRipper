@@ -1,0 +1,326 @@
+{
+  "atlas": "atlas-TightAtlas-export.png",
+  "atlasSha256": "a46d6c576172e7018e1732b9057a78f5d0ab9102801829f70054d2af3caeb842",
+  "sprites": [
+    {
+      "name": "TightTwo",
+      "logicalRect": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 52.0,
+        "height": 36.0
+      },
+      "pivotNorm": [
+        0.23,
+        0.71
+      ],
+      "ppu": 64.0,
+      "textureRect": [
+        26.07612,
+        32.07612,
+        35.910965,
+        29.84776
+      ],
+      "textureRectOffset": [
+        3.0761204,
+        2.0761204
+      ],
+      "uvTransform": [
+        64,
+        34.96,
+        64,
+        55.559998
+      ],
+      "settingsRaw": 69,
+      "downscaleMultiplier": 1,
+      "vertices": [
+        [
+          0.40687501430511475,
+          0.10062500834465027
+        ],
+        [
+          0.0006249994039535522,
+          -0.36812499165534973
+        ],
+        [
+          0.42250001430511475,
+          0.05375000834465027
+        ],
+        [
+          -0.10875000059604645,
+          0.10062500834465027
+        ],
+        [
+          -0.10875000059604645,
+          -0.36812499165534973
+        ],
+        [
+          -0.14000000059604645,
+          0.06937500834465027
+        ],
+        [
+          -0.14000000059604645,
+          -0.33687499165534973
+        ]
+      ],
+      "indices": [
+        6,
+        5,
+        4,
+        3,
+        4,
+        5,
+        1,
+        4,
+        3,
+        0,
+        1,
+        3,
+        2,
+        1,
+        0
+      ],
+      "note": "UVs must be computed by SpriteNativeUv; typeless stored UVs are not generation input. recalculate_uvs f32 (not Unity GetSpriteUVs / observed arrays)"
+    },
+    {
+      "name": "TightOne",
+      "logicalRect": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 40.0,
+        "height": 48.0
+      },
+      "pivotNorm": [
+        0.23,
+        0.71
+      ],
+      "ppu": 64.0,
+      "textureRect": [
+        0.07612038,
+        0.07612038,
+        34.847755,
+        41.847755
+      ],
+      "textureRectOffset": [
+        3.0761204,
+        2.0761204
+      ],
+      "uvTransform": [
+        64,
+        6.2,
+        64,
+        32.079998
+      ],
+      "settingsRaw": 65,
+      "downscaleMultiplier": 1,
+      "vertices": [
+        [
+          0.44999998807907104,
+          0.15500003099441528
+        ],
+        [
+          0.04375000298023224,
+          -0.5012499690055847
+        ],
+        [
+          0.44999998807907104,
+          -0.09499996900558472
+        ],
+        [
+          -0.06562499701976776,
+          -0.5012499690055847
+        ],
+        [
+          -0.09687499701976776,
+          0.15500003099441528
+        ],
+        [
+          -0.09687499701976776,
+          -0.4699999690055847
+        ]
+      ],
+      "indices": [
+        5,
+        4,
+        3,
+        0,
+        3,
+        4,
+        1,
+        3,
+        0,
+        2,
+        1,
+        0
+      ],
+      "note": "UVs must be computed by SpriteNativeUv; typeless stored UVs are not generation input. recalculate_uvs f32 (not unpacked typeless UVs, not Unity API observed UVs)"
+    }
+  ],
+  "images": {
+    "TightOne-Gamma-Bilinear-official.png": {
+      "pngSha256": "852dd69c27a907184a09ac758f6cd67a1ea0602dc23f344b650f1657d880a112",
+      "rgbaSha256": "12d6617b990ccf60595655019c3d0de383fca18a481a6755e1248b20fc3dce7b",
+      "width": 40,
+      "height": 48,
+      "pngBytes": 306
+    },
+    "TightOne-Gamma-Bilinear-python.png": {
+      "pngSha256": "461dbb014ceb14e1fa9fb78aa0ebf3c4dedf49463dd11fcbdcdac71f1520a0ca",
+      "rgbaSha256": "12d6617b990ccf60595655019c3d0de383fca18a481a6755e1248b20fc3dce7b",
+      "width": 40,
+      "height": 48,
+      "pngBytes": 276
+    },
+    "TightOne-Gamma-Point-official.png": {
+      "pngSha256": "852dd69c27a907184a09ac758f6cd67a1ea0602dc23f344b650f1657d880a112",
+      "rgbaSha256": "12d6617b990ccf60595655019c3d0de383fca18a481a6755e1248b20fc3dce7b",
+      "width": 40,
+      "height": 48,
+      "pngBytes": 306
+    },
+    "TightOne-Gamma-Point-python.png": {
+      "pngSha256": "461dbb014ceb14e1fa9fb78aa0ebf3c4dedf49463dd11fcbdcdac71f1520a0ca",
+      "rgbaSha256": "12d6617b990ccf60595655019c3d0de383fca18a481a6755e1248b20fc3dce7b",
+      "width": 40,
+      "height": 48,
+      "pngBytes": 276
+    },
+    "TightOne-Linear-Point-official.png": {
+      "pngSha256": "852dd69c27a907184a09ac758f6cd67a1ea0602dc23f344b650f1657d880a112",
+      "rgbaSha256": "12d6617b990ccf60595655019c3d0de383fca18a481a6755e1248b20fc3dce7b",
+      "width": 40,
+      "height": 48,
+      "pngBytes": 306
+    },
+    "TightOne-Linear-Point-python.png": {
+      "pngSha256": "461dbb014ceb14e1fa9fb78aa0ebf3c4dedf49463dd11fcbdcdac71f1520a0ca",
+      "rgbaSha256": "12d6617b990ccf60595655019c3d0de383fca18a481a6755e1248b20fc3dce7b",
+      "width": 40,
+      "height": 48,
+      "pngBytes": 276
+    },
+    "TightTwo-Gamma-Bilinear-official.png": {
+      "pngSha256": "9991466f0f028ccac3e39246f821dd081f01ef2df7b7d5351af103f7a576919b",
+      "rgbaSha256": "06dfe63ab7ccea3d9391072e81fe46cbd75b1ba6d1dee3d5dda5f2926bdff9ea",
+      "width": 52,
+      "height": 36,
+      "pngBytes": 323
+    },
+    "TightTwo-Gamma-Bilinear-python.png": {
+      "pngSha256": "26fedbf001e3110d5dc94a77526706929d8f0a7722f518284bba94391dfd0f6e",
+      "rgbaSha256": "06dfe63ab7ccea3d9391072e81fe46cbd75b1ba6d1dee3d5dda5f2926bdff9ea",
+      "width": 52,
+      "height": 36,
+      "pngBytes": 300
+    },
+    "TightTwo-Gamma-Point-official.png": {
+      "pngSha256": "2ae69f25796d73fa33935d1218c74414845e37fe958d00115e12a8550bc5fa2b",
+      "rgbaSha256": "14bb1293687d6cf03ed018ff2f7195eaab8436dfd1f4f8d22b99b6cf3c73ff34",
+      "width": 52,
+      "height": 36,
+      "pngBytes": 280
+    },
+    "TightTwo-Gamma-Point-python.png": {
+      "pngSha256": "ea527af5d7820b4c99b956dfdadd990d43ff2070477324cb3d98e354b349a4c3",
+      "rgbaSha256": "14bb1293687d6cf03ed018ff2f7195eaab8436dfd1f4f8d22b99b6cf3c73ff34",
+      "width": 52,
+      "height": 36,
+      "pngBytes": 264
+    },
+    "TightTwo-Linear-Point-official.png": {
+      "pngSha256": "2ae69f25796d73fa33935d1218c74414845e37fe958d00115e12a8550bc5fa2b",
+      "rgbaSha256": "14bb1293687d6cf03ed018ff2f7195eaab8436dfd1f4f8d22b99b6cf3c73ff34",
+      "width": 52,
+      "height": 36,
+      "pngBytes": 280
+    },
+    "TightTwo-Linear-Point-python.png": {
+      "pngSha256": "ea527af5d7820b4c99b956dfdadd990d43ff2070477324cb3d98e354b349a4c3",
+      "rgbaSha256": "14bb1293687d6cf03ed018ff2f7195eaab8436dfd1f4f8d22b99b6cf3c73ff34",
+      "width": 52,
+      "height": 36,
+      "pngBytes": 264
+    },
+    "atlas-TightAtlas-export.png": {
+      "pngSha256": "a46d6c576172e7018e1732b9057a78f5d0ab9102801829f70054d2af3caeb842",
+      "rgbaSha256": "cd471b0f2d6b8a88a5078d1dbacd7017da28971abce950629dda30ed88e5e1b2",
+      "width": 64,
+      "height": 64,
+      "pngBytes": 788
+    },
+    "TightOne-Linear-Bilinear-official.png": {
+      "pngSha256": "852dd69c27a907184a09ac758f6cd67a1ea0602dc23f344b650f1657d880a112",
+      "rgbaSha256": "12d6617b990ccf60595655019c3d0de383fca18a481a6755e1248b20fc3dce7b",
+      "width": 40,
+      "height": 48,
+      "pngBytes": 306
+    },
+    "TightOne-Linear-Bilinear-python-srgb.png": {
+      "pngSha256": "461dbb014ceb14e1fa9fb78aa0ebf3c4dedf49463dd11fcbdcdac71f1520a0ca",
+      "rgbaSha256": "12d6617b990ccf60595655019c3d0de383fca18a481a6755e1248b20fc3dce7b",
+      "width": 40,
+      "height": 48,
+      "pngBytes": 276
+    },
+    "TightTwo-Linear-Bilinear-firstStage.png": {
+      "pngSha256": "4ad8c2f820da999a4ff3c39022820cd7cffb27f6e47c922e99b7dad78819c09b",
+      "rgbaSha256": "cfdf9598ad6330bde7da32270add7d6054fa10c5149b654312b14d8af1543ea5",
+      "width": 52,
+      "height": 36,
+      "pngBytes": 321
+    },
+    "TightTwo-Linear-Bilinear-official.png": {
+      "pngSha256": "ade2185fb3111d20c0d9c488c4d83e30aeb653fb8970dd14df6fa7762ef9ee36",
+      "rgbaSha256": "c78b807f095bd3c74ba3a293d585e43425eeefb2178a8bf2eee71506b16850db",
+      "width": 52,
+      "height": 36,
+      "pngBytes": 322
+    },
+    "TightTwo-Linear-Bilinear-python-srgb.png": {
+      "pngSha256": "17fe190a0b33b64453a09e2d07820ede71dc391afa3933a872862727a78bf895",
+      "rgbaSha256": "7484e3d4386d4ffbb1e81f2b9ac52c848272930fa62b49fe18f59ce8af46ed28",
+      "width": 52,
+      "height": 36,
+      "pngBytes": 294
+    }
+  },
+  "officialEqualsPythonRgba": {
+    "TightTwo-Gamma-Point-official.png == TightTwo-Gamma-Point-python.png": true,
+    "TightTwo-Gamma-Bilinear-official.png == TightTwo-Gamma-Bilinear-python.png": true,
+    "TightTwo-Linear-Point-official.png == TightTwo-Linear-Point-python.png": true,
+    "TightOne-Gamma-Point-official.png == TightOne-Gamma-Point-python.png": true,
+    "TightOne-Gamma-Bilinear-official.png == TightOne-Gamma-Bilinear-python.png": true,
+    "TightOne-Linear-Point-official.png == TightOne-Linear-Point-python.png": true
+  },
+  "linearBilinearResiduals": {
+    "note": "Fixture-specific official (post-blit) vs CPU IEC sRGB bilinear. Not a universal 2-byte bound. Engine implements the CPU path and does not apply Inspector blit.",
+    "TightTwo_official_vs_pythonSrgb": {
+      "differentPixels": 26,
+      "maxChannel": 2,
+      "rgbOpaqueOrSameAlpha": 26,
+      "opaqueOnlyA": 0,
+      "opaqueOnlyB": 0
+    },
+    "TightTwo_firstStage_vs_pythonSrgb": {
+      "differentPixels": 15,
+      "maxChannel": 1,
+      "rgbOpaqueOrSameAlpha": 15,
+      "opaqueOnlyA": 0,
+      "opaqueOnlyB": 0
+    },
+    "TightTwo_official_vs_firstStage": {
+      "differentPixels": 25,
+      "maxChannel": 2,
+      "rgbOpaqueOrSameAlpha": 25,
+      "opaqueOnlyA": 0,
+      "opaqueOnlyB": 0
+    },
+    "TightOne_official_vs_pythonSrgb": {
+      "differentPixels": 0,
+      "maxChannel": 0,
+      "rgbOpaqueOrSameAlpha": 0,
+      "opaqueOnlyA": 0,
+      "opaqueOnlyB": 0
+    }
+  }
+}

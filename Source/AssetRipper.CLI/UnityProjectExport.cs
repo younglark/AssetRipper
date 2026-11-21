@@ -47,8 +47,7 @@ internal static class UnityProjectExport
 			Logger.Add(logger);
 			try
 			{
-				FullConfiguration settings = new();
-				settings.LoadFromDefaultPath();
+				FullConfiguration settings = CreateConfiguredSettings(options);
 				ExportHandler handler = new(settings);
 				GameData gameData = loaded ?? handler.LoadAndProcess(inputs, fileSystem);
 				try
@@ -79,7 +78,7 @@ internal static class UnityProjectExport
 					if (fileSystem.File.Exists(oldManifest)) fileSystem.File.Delete(oldManifest);
 					ExportKind(options.Kind, handler, settings, gameData, output, cancellationToken.CanBeCanceled ? new CancellableFileSystem(fileSystem, cancellationToken) : fileSystem);
 					cancellationToken.ThrowIfCancellationRequested();
-					WriteManifest(output, inputs, options.Kind, fileSystem);
+					WriteManifest(output, inputs, options.Kind, GetSettingsFingerprint(settings), fileSystem);
 				}
 				finally
 				{
@@ -132,7 +131,7 @@ internal static class UnityProjectExport
 		if (CheckProtectedDestination(output, stderr, jsonMode) is int protectedError) return protectedError;
 		if (fileSystem.File.Exists(output))
 			return CliOutput.WriteError(stderr, jsonMode, ExitCode.RuntimeError, "output_is_file", "The output path is an existing file.", "Choose a new or empty --output directory.");
-		if (!options.DryRun && TryGetExistingExport(output, options.Inputs, options.Kind, fileSystem))
+		if (!options.DryRun && TryGetExistingExport(output, options.Inputs, options.Kind, GetSettingsFingerprint(options), fileSystem))
 		{
 			WriteResult(stdout, jsonMode, options.Kind, "completed", output, existing: true);
 			return ExitCode.Success;
@@ -213,7 +212,29 @@ internal static class UnityProjectExport
 		PrimaryContentExporter.CreateDefault(gameData, settings).Export(gameData.GameBundle, settings, fileSystem);
 	}
 
-	private static bool TryGetExistingExport(string output, IReadOnlyList<string> inputs, string kind, FileSystem fileSystem)
+	internal static FullConfiguration CreateConfiguredSettings(UnityExportArguments options)
+	{
+		FullConfiguration settings = new();
+		settings.LoadFromDefaultPath();
+		if (options.SpriteExportMode is { } mode)
+		{
+			settings.ExportSettings.SpriteExportMode = mode;
+		}
+
+		return settings;
+	}
+
+	internal static string GetSettingsFingerprint(UnityExportArguments options)
+	{
+		return GetSettingsFingerprint(CreateConfiguredSettings(options));
+	}
+
+	internal static string GetSettingsFingerprint(FullConfiguration settings)
+	{
+		return $"sprite-export-mode={settings.ExportSettings.SpriteExportMode.ToCliValue()}";
+	}
+
+	private static bool TryGetExistingExport(string output, IReadOnlyList<string> inputs, string kind, string settingsFingerprint, FileSystem fileSystem)
 	{
 		string path = fileSystem.Path.Join(output, ManifestFileName);
 		if (!fileSystem.File.Exists(path))
@@ -229,6 +250,13 @@ internal static class UnityProjectExport
 				return false;
 			}
 
+			// Old exports could load a non-Yaml default configuration. Their settings
+			// cannot be inferred from today's defaults, so require explicit confirmation.
+			if (string.IsNullOrEmpty(manifest.SettingsFingerprint) || manifest.SettingsFingerprint != settingsFingerprint)
+			{
+				return false;
+			}
+
 			return NormalizeInputs(inputs, fileSystem).SequenceEqual(NormalizeInputs(manifest.Inputs, fileSystem), StringComparer.Ordinal);
 		}
 		catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
@@ -237,12 +265,13 @@ internal static class UnityProjectExport
 		}
 	}
 
-	private static void WriteManifest(string output, IReadOnlyList<string> inputs, string kind, FileSystem fileSystem)
+	private static void WriteManifest(string output, IReadOnlyList<string> inputs, string kind, string settingsFingerprint, FileSystem fileSystem)
 	{
 		ExportManifest manifest = new()
 		{
 			Kind = kind,
 			Inputs = NormalizeInputs(inputs, fileSystem),
+			SettingsFingerprint = settingsFingerprint,
 		};
 		string path = fileSystem.Path.Join(output, ManifestFileName);
 		fileSystem.File.WriteAllText(path, JsonSerializer.Serialize(manifest, CliJsonContext.Default.ExportManifest));
